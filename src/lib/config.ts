@@ -13,7 +13,7 @@ export function getBaseUrl(env?: Record<string, any>): string {
     env?.BASE_URL ||
     import.meta.env.PUBLIC_BASE_URL ||
     import.meta.env.BASE_URL ||
-    'https://recruitnest.prashantsinghstd.workers.dev';
+    'https://jobned.com';
 
   return baseUrl.replace(/\/+$/, '');
 }

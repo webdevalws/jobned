@@ -39,13 +39,13 @@ interface Props {
 
 const {
   title,
-  description = "RecruitNest is an AI-powered job board and recruitment platform connecting top-tier talent with world-class tech hiring opportunities.",
+  description = "JobNed is an AI-powered job board and recruitment platform connecting top-tier talent with world-class tech hiring opportunities.",
   image = "/images/og-default.png",
   type = "website",
   noindex = false,
   canonicalUrl,
-  keywords = "jobs, hiring, recruitment, tech jobs, software engineer jobs, candidate matching, AI recruitment, job portal, SaaS careers",
-  author = "RecruitNest",
+  keywords = "JobNed, jobs, hiring, recruitment, tech jobs, software engineer jobs, candidate matching, AI recruitment, job portal, SaaS careers",
+  author = "JobNed",
   publishedTime,
   modifiedTime,
   schemaType,
@@ -55,8 +55,8 @@ const {
 
 // Base URL calculation
 const baseUrl = getBaseUrl();
-const siteName = "RecruitNest";
-const defaultTitle = "RecruitNest - AI-Powered Job & Talent Matching Platform";
+const siteName = "JobNed";
+const defaultTitle = "JobNed - AI-Powered Job & Talent Matching Platform";
 const formattedTitle = title
   ? title.includes(siteName)
     ? title
@@ -82,20 +82,19 @@ const robotsContent = noindex
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  name: "RecruitNest",
+  name: "JobNed",
   url: baseUrl,
   logo: `${baseUrl}/images/logo-icon.png`,
   sameAs: [
-    "https://twitter.com/recruitnest",
-    "https://linkedin.com/company/recruitnest",
-    "https://facebook.com/recruitnest",
+    "https://twitter.com/jobned",
+    "https://linkedin.com/company/jobned",
   ],
 };
 
 const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "RecruitNest",
+  name: "JobNed",
   url: baseUrl,
   potentialAction: {
     "@type": "SearchAction",
@@ -107,7 +106,7 @@ const websiteSchema = {
 const appSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  name: "RecruitNest",
+  name: "JobNed",
   operatingSystem: "All",
   applicationCategory: "BusinessApplication",
   offers: {
@@ -140,7 +139,7 @@ if (jobData || schemaType === "JobPosting") {
       : "FULL_TIME",
     hiringOrganization: {
       "@type": "Organization",
-      name: d.companyName || "RecruitNest Partner",
+      name: d.companyName || "JobNed Verified Partner",
       logo: d.companyLogo
         ? d.companyLogo.startsWith("http")
           ? d.companyLogo
@@ -226,8 +225,8 @@ if (jobData || schemaType === "JobPosting") {
 <meta name="twitter:title" content={formattedTitle} />
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={absoluteImage} />
-<meta name="twitter:site" content="@recruitnest" />
-<meta name="twitter:creator" content="@recruitnest" />
+<meta name="twitter:site" content="@jobned" />
+<meta name="twitter:creator" content="@jobned" />
 
 <!-- Schema.org JSON-LD Structured Data -->
 <script

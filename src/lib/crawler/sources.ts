@@ -220,6 +220,98 @@ export async function fetchFreshJobsFromSources(maxAgeHours: number = 720, jsear
     }
   }
 
+  // 🔥 1. Open Job Board Feed — Arbeitnow API (Free, no key required)
+  tasks.push((async () => {
+    try {
+      const data = await safeFetchJson('https://www.arbeitnow.com/api/job-board-api');
+      const jobList = data?.data || [];
+      if (!Array.isArray(jobList)) return;
+
+      for (const job of jobList.slice(0, 40)) {
+        if (!job || !job.title || !job.company_name) continue;
+        const jobTitle = job.title;
+        const companyName = job.company_name;
+        const applyUrl = job.url || '';
+        if (!applyUrl || !applyUrl.startsWith('http')) continue;
+
+        const companySlug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const companyLogo = `https://logo.clearbit.com/${companySlug}.com`;
+        const locationCity = job.location ? `${job.location}, Remote` : 'India, Remote';
+        const cleanDesc = sanitizeHtmlText(job.description || jobTitle).slice(0, 4000);
+
+        results.push({
+          id: generateJobHash(companyName, jobTitle, applyUrl),
+          sourceUrl: applyUrl,
+          sourceType: 'career_page',
+          companyName: companyName,
+          companyWebsite: `https://${companySlug}.com`,
+          companyLogo: companyLogo,
+          companyTier: 'startup_small',
+          jobTitle: jobTitle,
+          description: cleanDesc,
+          requirements: Array.isArray(job.tags) ? job.tags.slice(0, 8) : [],
+          salaryCurrency: 'INR',
+          locationCity: locationCity,
+          locationRemote: Boolean(job.remote),
+          employmentType: 'Full-time',
+          experienceLevel: 'Mid',
+          externalApplyUrl: applyUrl,
+          applyMode: 'redirect',
+          originalPostedAt: job.created_at ? new Date(job.created_at * 1000) : new Date(),
+          indiaScore: 90,
+        });
+      }
+    } catch (e) {
+      console.warn('Error fetching Arbeitnow jobs:', e);
+    }
+  })());
+
+  // 🔥 2. Open Global Tech Feed — Remotive API (Free, no key required)
+  tasks.push((async () => {
+    try {
+      const data = await safeFetchJson('https://remotive.com/api/remote-jobs?limit=50');
+      const jobList = data?.jobs || [];
+      if (!Array.isArray(jobList)) return;
+
+      for (const job of jobList.slice(0, 40)) {
+        if (!job || !job.title || !job.company_name) continue;
+        const jobTitle = job.title;
+        const companyName = job.company_name;
+        const applyUrl = job.url || '';
+        if (!applyUrl || !applyUrl.startsWith('http')) continue;
+
+        const companySlug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const companyLogo = job.company_logo || `https://logo.clearbit.com/${companySlug}.com`;
+        const locationCity = job.candidate_required_location ? `${job.candidate_required_location}` : 'Worldwide, Remote';
+        const cleanDesc = sanitizeHtmlText(job.description || jobTitle).slice(0, 4000);
+
+        results.push({
+          id: generateJobHash(companyName, jobTitle, applyUrl),
+          sourceUrl: applyUrl,
+          sourceType: 'career_page',
+          companyName: companyName,
+          companyWebsite: `https://${companySlug}.com`,
+          companyLogo: companyLogo,
+          companyTier: 'startup_small',
+          jobTitle: jobTitle,
+          description: cleanDesc,
+          requirements: job.category ? [job.category] : [],
+          salaryCurrency: 'INR',
+          locationCity: locationCity,
+          locationRemote: true,
+          employmentType: 'Full-time',
+          experienceLevel: 'Mid',
+          externalApplyUrl: applyUrl,
+          applyMode: 'redirect',
+          originalPostedAt: job.publication_date ? new Date(job.publication_date) : new Date(),
+          indiaScore: 85,
+        });
+      }
+    } catch (e) {
+      console.warn('Error fetching Remotive jobs:', e);
+    }
+  })());
+
   const BATCH_SIZE = 10;
   for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
     await Promise.allSettled(tasks.slice(i, i + BATCH_SIZE));

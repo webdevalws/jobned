@@ -34,7 +34,9 @@
     "@capacitor/cli": "^8.5.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/uuid": "^10.0.0",
-    "better-sqlite3": "^13.0.3",
     "drizzle-kit": "^0.31.10"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^13.0.3"
   }
 }

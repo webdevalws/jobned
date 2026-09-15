@@ -6,6 +6,10 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "routes": [
+    { "pattern": "jobned.com", "custom_domain": true },
+    { "pattern": "www.jobned.com", "custom_domain": true }
+  ],
   "vars": {
     "PUBLIC_BASE_URL": "https://jobned.com",
     "PUBLIC_STORAGE_URL": "https://jobned.com/uploads",

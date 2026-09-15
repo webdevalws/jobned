@@ -401,7 +401,11 @@ const queueItems = await db
       });
       const data = await res.json();
       if (res.ok) {
-        if ((window as any).showToast) (window as any).showToast(`Successfully published ${data.publishedCount} jobs to portal! 🎉`);
+        if (data.publishedCount === 0) {
+          if ((window as any).showToast) (window as any).showToast('No pending jobs in queue to publish. Click "Crawl Fresh Jobs Now" or "Run Full Cycle" first!', 'warning');
+        } else {
+          if ((window as any).showToast) (window as any).showToast(`Successfully published ${data.publishedCount} jobs to portal! 🎉`);
+        }
         setTimeout(() => window.location.reload(), 1200);
       } else {
         if ((window as any).showToast) (window as any).showToast(data.error || 'Publish failed', 'error');

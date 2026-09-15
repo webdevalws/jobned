@@ -7,8 +7,8 @@
     "nodejs_compat"
   ],
   "vars": {
-    "PUBLIC_BASE_URL": "https://recruitnest.junior-webdev-alws.workers.dev",
-    "PUBLIC_STORAGE_URL": "https://recruitnest.junior-webdev-alws.workers.dev/uploads",
+    "PUBLIC_BASE_URL": "https://jobned.com",
+    "PUBLIC_STORAGE_URL": "https://jobned.com/uploads",
     "PUBLIC_RAZORPAY_KEY_ID": "rzp_live_TbnQ3kUA2u3BbQ",
     "RAZORPAY_KEY_ID": "rzp_live_TbnQ3kUA2u3BbQ"
   },

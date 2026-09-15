@@ -19,5 +19,5 @@ Disallow: /masteradmin/
 Disallow: /api/
 
 # Dynamic Sitemap Location
-Sitemap: https://recruitnest.junior-webdev-alws.workers.dev/sitemap.xml
+Sitemap: https://jobned.com/sitemap.xml
 

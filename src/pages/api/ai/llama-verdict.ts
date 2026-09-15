@@ -17,7 +17,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 });
     }
 
-    const systemPrompt = 'You are an expert AI recruiter for RecruitNest, a professional job portal. Give a sharp, honest, actionable hiring verdict. Be direct and specific. Use bullet points. Maximum 200 words total.';
+    const systemPrompt = 'You are an expert AI recruiter for JobNed, a professional job portal. Give a sharp, honest, actionable hiring verdict. Be direct and specific. Use bullet points. Maximum 200 words total.';
 
     const skillsStr = Array.isArray(candidateSkills) ? candidateSkills.join(', ') : (candidateSkills || 'None listed');
     const matchingStr = Array.isArray(matchingSkills) ? matchingSkills.join(', ') : 'None';

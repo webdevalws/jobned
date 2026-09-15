@@ -8,8 +8,8 @@ async function generateHashes() {
   const sql = `
   INSERT INTO users (id, email, password_hash, first_name, last_name, user_type, verified_status, is_active)
   VALUES 
-    ('${crypto.randomUUID()}', 'admin@recruitnest.com', '${adminHash}', 'Admin', 'User', 'admin', 'verified', 1),
-    ('${crypto.randomUUID()}', 'superadmin@recruitnest.com', '${superadminHash}', 'Super', 'Admin', 'superadmin', 'verified', 1);
+    ('${crypto.randomUUID()}', 'admin@jobned.com', '${adminHash}', 'Admin', 'User', 'admin', 'verified', 1),
+    ('${crypto.randomUUID()}', 'superadmin@jobned.com', '${superadminHash}', 'Super', 'Admin', 'superadmin', 'verified', 1);
   `;
   
   fs.writeFileSync('insert-admins.sql', sql, 'utf8');

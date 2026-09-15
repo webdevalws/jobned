@@ -21,7 +21,7 @@ const userRecord = await db.select().from(users).where(eq(users.id, targetUserId
     <div class="header-titles">
       <span class="badge-tag">Account Profile Inspection</span>
       <h1>{userRecord ? `${userRecord.firstName} ${userRecord.lastName}` : 'MasterAdmin Profile'}</h1>
-      <p class="subtitle">{userRecord?.email || 'masteradmin@recruitnest.com'}</p>
+      <p class="subtitle">{userRecord?.email || 'masteradmin@jobned.com'}</p>
     </div>
   </div>
 
@@ -44,7 +44,7 @@ const userRecord = await db.select().from(users).where(eq(users.id, targetUserId
       </div>
       <div class="detail-group">
         <label>Company / Organization</label>
-        <div>{userRecord?.companyName || 'RecruitNest System Governance'}</div>
+        <div>{userRecord?.companyName || 'JobNed System Governance'}</div>
       </div>
       <div class="detail-group">
         <label>Industry</label>

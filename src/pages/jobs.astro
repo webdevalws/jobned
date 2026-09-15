@@ -7,9 +7,7 @@ import { eq, desc, and, or, isNull, notLike } from "drizzle-orm";
 
 // @ts-ignore
 const payload = Astro.locals.user;
-if (!payload || payload.userType !== "employee") {
-  return Astro.redirect("/login");
-}
+const userType = payload?.userType || "employee";
 
 Astro.response.headers.set(
   "Cache-Control",
@@ -19,60 +17,33 @@ Astro.response.headers.set(
 // Pre-apply job ID from query string (from dashboard "Apply" button)
 const preApplyJobId = Astro.url.searchParams.get("apply") || "";
 const preViewJobId = Astro.url.searchParams.get("view") || "";
+const initialQuery = Astro.url.searchParams.get("q") || "";
+const initialLocation = Astro.url.searchParams.get("location") || "";
 
 // Check which jobs the user already applied to
-const db = getDb();
 let appliedJobIds: Set<string> = new Set();
-let initialJobs: any[] = [];
 let candidateUser: any = null;
 
-try {
-  const userApps = await db
-    .select({ jobPostingId: applications.jobPostingId })
-    .from(applications)
-    .where(eq(applications.applicantId, payload.userId))
-    .all();
+if (payload && payload.userType === "employee") {
+  try {
+    const db = getDb();
+    const userApps = await db
+      .select({ jobPostingId: applications.jobPostingId })
+      .from(applications)
+      .where(eq(applications.applicantId, payload.userId))
+      .all();
 
-  appliedJobIds = new Set(userApps.map((a) => a.jobPostingId));
-
-  candidateUser = await db.select().from(users).where(eq(users.id, payload.userId)).get();
-
-  initialJobs = await db
-    .select({
-      id: jobPostings.id,
-      jobTitle: jobPostings.jobTitle,
-      description: jobPostings.description,
-      requirements: jobPostings.requirements,
-      salaryMin: jobPostings.salaryMin,
-      salaryMax: jobPostings.salaryMax,
-      salaryCurrency: jobPostings.salaryCurrency,
-      locationCity: jobPostings.locationCity,
-      locationRemote: jobPostings.locationRemote,
-      employmentType: jobPostings.employmentType,
-      experienceLevel: jobPostings.experienceLevel,
-      publishedAt: jobPostings.publishedAt,
-      companyName: users.companyName,
-      companyIndustry: users.companyIndustry,
-    })
-    .from(jobPostings)
-    .leftJoin(users, eq(jobPostings.employerId, users.id))
-    .where(and(eq(jobPostings.status, 'published'), notLike(jobPostings.id, 'external_%'), or(eq(jobPostings.isDeleted, false), isNull(jobPostings.isDeleted))))
-    .orderBy(desc(jobPostings.publishedAt))
-    .limit(20)
-    .all();
-
-  initialJobs = (initialJobs || []).map((j) => ({
-    ...j,
-    companyName: j.companyName || "Verified Employer",
-  }));
-} catch (e) {
-  console.error("Error loading jobs page:", e);
+    appliedJobIds = new Set(userApps.map((a) => a.jobPostingId));
+    candidateUser = await db.select().from(users).where(eq(users.id, payload.userId)).get();
+  } catch (e) {
+    console.error("Error loading user application data:", e);
+  }
 }
 
 const appliedArray = Array.from(appliedJobIds);
 ---
 
-<DashboardLayout title="Find Jobs" userType="employee" activePath="/jobs">
+<DashboardLayout title="Find Jobs" userType={userType} activePath="/jobs">
   <div class="page-header">
     <div>
       <h1 class="page-title">Find Jobs</h1>
@@ -106,8 +77,29 @@ const appliedArray = Array.from(appliedJobIds);
         <input
           type="text"
           id="searchInput"
-          placeholder="Search jobs, companies, skills…"
+          placeholder="Search jobs, skills, companies…"
           class="search-input"
+          value={initialQuery}
+        />
+      </div>
+      <div class="search-input-wrap search-location-wrap">
+        <svg
+          class="search-icon-svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          ><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+          ></path><circle cx="12" cy="10" r="3"></circle></svg
+        >
+        <input
+          type="text"
+          id="locationInput"
+          placeholder="City or location…"
+          class="search-input"
+          value={initialLocation}
         />
       </div>
       <div class="filters">
@@ -136,6 +128,20 @@ const appliedArray = Array.from(appliedJobIds);
         >
       </div>
     </div>
+  </div>
+
+  <!-- Search Fallback Notice Banner -->
+  <div id="fallbackBanner" class="search-fallback-banner" style="display: none;">
+    <div class="fallback-banner-content">
+      <div class="fallback-icon-wrap">💡</div>
+      <div class="fallback-text-group">
+        <h4 class="fallback-title" id="fallbackTitle">No exact matches found</h4>
+        <p class="fallback-subtitle" id="fallbackSubtitle">Showing all available open job opportunities below so you can explore other great positions:</p>
+      </div>
+    </div>
+    <button type="button" class="btn btn-outline btn-sm fallback-clear-btn" onclick="window.clearAllFilters()">
+      <span>Clear Search</span>
+    </button>
   </div>
 
   <!-- Jobs Grid -->
@@ -412,14 +418,23 @@ const appliedArray = Array.from(appliedJobIds);
 
   .jobs-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
     gap: 1rem;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
   }
   .job-card {
     padding: 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
     transition:
       box-shadow 0.2s,
       transform 0.2s;
@@ -432,6 +447,8 @@ const appliedArray = Array.from(appliedJobIds);
     display: flex;
     align-items: flex-start;
     gap: 0.875rem;
+    width: 100%;
+    min-width: 0;
   }
   .company-logo {
     width: 44px;
@@ -448,19 +465,27 @@ const appliedArray = Array.from(appliedJobIds);
   .job-card-meta {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
   }
   .job-title {
     font-size: 0.95rem;
     font-weight: 700;
     margin: 0 0 0.125rem 0;
-    white-space: nowrap;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
+    line-height: 1.3;
   }
   .company-name {
     font-size: 0.8rem;
     color: var(--color-text-muted);
     margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .job-desc {
     font-size: 0.8rem;
@@ -471,21 +496,25 @@ const appliedArray = Array.from(appliedJobIds);
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    word-break: break-word;
   }
   .job-footer {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
   }
   .tags {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.35rem;
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
+    max-width: 100%;
   }
   .tag {
     font-size: 0.7rem;
@@ -501,6 +530,7 @@ const appliedArray = Array.from(appliedJobIds);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    box-sizing: border-box;
   }
   .tag-green {
     background: #dcfce7;
@@ -541,6 +571,7 @@ const appliedArray = Array.from(appliedJobIds);
     font-size: 0.7rem;
     color: var(--color-text-muted);
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .apply-btn {
@@ -741,6 +772,11 @@ const appliedArray = Array.from(appliedJobIds);
       flex-direction: column;
       align-items: flex-start;
       gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .search-bar-card {
+      padding: 0.875rem 0.75rem !important;
+      margin-bottom: 1rem !important;
     }
     .search-row {
       flex-direction: column;
@@ -749,6 +785,7 @@ const appliedArray = Array.from(appliedJobIds);
     }
     .search-input-wrap {
       width: 100%;
+      min-width: 0;
     }
     .filters {
       width: 100%;
@@ -762,7 +799,7 @@ const appliedArray = Array.from(appliedJobIds);
       min-width: 0 !important;
       box-sizing: border-box !important;
       font-size: 0.85rem !important;
-      padding: 0.55rem 2rem 0.55rem 0.75rem !important;
+      padding: 0.55rem 1.75rem 0.55rem 0.65rem !important;
       border-radius: 0.75rem !important;
     }
     .remote-toggle {
@@ -772,7 +809,56 @@ const appliedArray = Array.from(appliedJobIds);
       grid-column: span 2;
     }
     .jobs-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr) !important;
+      gap: 0.875rem !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    .job-card {
+      padding: 1rem 0.875rem !important;
+      gap: 0.625rem !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .job-card-top {
+      gap: 0.625rem !important;
+      align-items: flex-start !important;
+    }
+    .company-logo {
+      width: 38px !important;
+      height: 38px !important;
+      font-size: 0.95rem !important;
+      border-radius: 8px !important;
+    }
+    .job-title {
+      font-size: 0.88rem !important;
+      line-height: 1.25 !important;
+    }
+    .company-name {
+      font-size: 0.75rem !important;
+    }
+    .apply-btn {
+      padding: 0.35rem 0.7rem !important;
+      font-size: 0.75rem !important;
+      border-radius: 6px !important;
+    }
+    .job-desc {
+      font-size: 0.78rem !important;
+      -webkit-line-clamp: 2 !important;
+    }
+    .job-footer {
+      gap: 0.35rem !important;
+    }
+    .tags {
+      gap: 0.25rem !important;
+    }
+    .tag {
+      font-size: 0.68rem !important;
+      padding: 0.12rem 0.38rem !important;
+    }
+    .posted-date {
+      font-size: 0.68rem !important;
     }
     .modal {
       max-height: 90vh;
@@ -780,30 +866,128 @@ const appliedArray = Array.from(appliedJobIds);
     }
   }
 
+  .search-fallback-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding: 1.1rem 1.35rem;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+    border: 1.5px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--border-radius-lg, 16px);
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px -4px rgba(99, 102, 241, 0.12);
+  }
+  .fallback-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    min-width: 0;
+  }
+  .fallback-icon-wrap {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  }
+  .fallback-text-group {
+    flex: 1;
+    min-width: 0;
+  }
+  .fallback-title {
+    margin: 0 0 0.2rem 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-main);
+    letter-spacing: -0.01em;
+  }
+  .fallback-subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    line-height: 1.45;
+  }
+  .fallback-clear-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0.45rem 1rem !important;
+    font-size: 0.825rem !important;
+  }
+
+  @media (max-width: 640px) {
+    .search-fallback-banner {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.85rem;
+      padding: 1rem;
+    }
+    .fallback-clear-btn {
+      width: 100%;
+      text-align: center;
+      justify-content: center;
+    }
+  }
+
   @media (max-width: 480px) {
     .filters {
       grid-template-columns: minmax(0, 1fr);
     }
+    .job-card {
+      padding: 0.875rem 0.75rem !important;
+    }
+    .company-logo {
+      width: 34px !important;
+      height: 34px !important;
+      font-size: 0.88rem !important;
+    }
+    .job-title {
+      font-size: 0.84rem !important;
+    }
+    .apply-btn {
+      padding: 0.3rem 0.6rem !important;
+      font-size: 0.72rem !important;
+    }
   }
 </style>
 
-<script define:vars={{ appliedArray, preApplyJobId, preViewJobId }}>
+<script define:vars={{ appliedArray, preApplyJobId, preViewJobId, initialQuery, initialLocation }}>
   // Parse applied set
   let appliedJobIds = new Set(appliedArray || []);
 
   // --- FILTER LOGIC ---
   let allJobs = [];
 
-  function renderJobs(jobs, append = false) {
+  function renderJobs(jobs, append = false, isFallback = false, filteredQuery = "") {
     const grid = document.getElementById("jobsGrid");
     const empty = document.getElementById("emptyState");
     const badge = document.getElementById("jobsCountBadge");
+    const fallbackBanner = document.getElementById("fallbackBanner");
+    const fallbackTitle = document.getElementById("fallbackTitle");
+    const fallbackSubtitle = document.getElementById("fallbackSubtitle");
 
-    badge.textContent = `${allJobs.length} job${allJobs.length !== 1 ? "s" : ""} available`;
+    if (isFallback && fallbackBanner) {
+      fallbackBanner.style.display = "flex";
+      const qText = filteredQuery ? `"${escHtml(filteredQuery)}"` : "your search";
+      if (fallbackTitle) fallbackTitle.innerHTML = `No exact matches found for <strong>${escHtml(filteredQuery || 'your query')}</strong>`;
+      if (fallbackSubtitle) fallbackSubtitle.textContent = `Showing all available open job opportunities below so you can explore other great positions:`;
+      if (badge) badge.textContent = `All ${allJobs.length} available jobs`;
+    } else {
+      if (fallbackBanner) fallbackBanner.style.display = "none";
+      if (badge) badge.textContent = `${allJobs.length} job${allJobs.length !== 1 ? "s" : ""} available`;
+    }
 
     if (jobs.length === 0 && !append) {
       grid.style.display = "none";
       empty.style.display = "block";
+      if (fallbackBanner) fallbackBanner.style.display = "none";
       return;
     }
     grid.style.display = "grid";
@@ -836,6 +1020,9 @@ const appliedArray = Array.from(appliedJobIds);
             ? `<div class="ai-fit-pill"><span class="ai-spark">✨</span><span class="ai-txt">AI Match: <strong>${job.matchScore}%</strong></span></div>`
             : "";
 
+          const rawCleanDesc = (job.description || "").replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+          const descSnippet = rawCleanDesc.length > 120 ? rawCleanDesc.slice(0, 120) + "…" : rawCleanDesc;
+
           return `
           <div class="card job-card" onclick="window.location.href='/jobs/${job.id}'" style="cursor: pointer;" data-job-id="${job.id}">
             <div class="job-card-top">
@@ -856,7 +1043,7 @@ const appliedArray = Array.from(appliedJobIds);
                 ${isApplied ? "disabled" : ""}
               >${isApplied ? "✓ Applied" : "Apply Now"}</button>
             </div>
-            <p class="job-desc">${escHtml((job.description || "").slice(0, 120))}${(job.description || "").length > 120 ? "…" : ""}</p>
+            <p class="job-desc">${escHtml(descSnippet)}</p>
             <div class="job-footer">
               <div class="tags">
                 ${job.locationRemote ? '<span class="tag tag-green">🌐 Remote</span>' : ""}
@@ -934,20 +1121,23 @@ const appliedArray = Array.from(appliedJobIds);
   let isFetching = false;
 
   async function fetchJobs(page = 1, append = false) {
-    const search = document.getElementById("searchInput").value.toLowerCase().trim();
-    const type = document.getElementById("typeFilter").value;
-    const exp = document.getElementById("expFilter").value;
-    const remote = document.getElementById("remoteFilter").checked;
+    const search = (document.getElementById("searchInput")?.value || "").toLowerCase().trim();
+    const location = (document.getElementById("locationInput")?.value || "").toLowerCase().trim();
+    const type = document.getElementById("typeFilter")?.value || "";
+    const exp = document.getElementById("expFilter")?.value || "";
+    const remote = document.getElementById("remoteFilter")?.checked;
 
     const url = new URL("/api/jobs/search", window.location.origin);
     if (search) url.searchParams.set("q", search);
+    if (location) url.searchParams.set("location", location);
     if (type) url.searchParams.set("type", type);
     if (exp) url.searchParams.set("exp", exp);
     if (remote) url.searchParams.set("remote", "true");
     url.searchParams.set("page", page);
     
     isFetching = true;
-    document.getElementById('loadingIndicator').style.display = 'block';
+    const loadingEl = document.getElementById('loadingIndicator');
+    if (loadingEl) loadingEl.style.display = 'block';
     
     try {
       const res = await fetch(url);
@@ -964,24 +1154,27 @@ const appliedArray = Array.from(appliedJobIds);
       currentPage = page;
       
       updateClearButton();
-      renderJobs(newlyFetched, append);
+      renderJobs(newlyFetched, append, data.isFallback, data.filteredQuery || search || location);
       
     } catch (e) {
       console.error(e);
     } finally {
       isFetching = false;
-      document.getElementById('loadingIndicator').style.display = 'none';
+      const loadingEl = document.getElementById('loadingIndicator');
+      if (loadingEl) loadingEl.style.display = 'none';
     }
   }
 
   function updateClearButton() {
-    const search = document.getElementById("searchInput").value.trim();
-    const type = document.getElementById("typeFilter").value;
-    const exp = document.getElementById("expFilter").value;
-    const remote = document.getElementById("remoteFilter").checked;
+    const search = (document.getElementById("searchInput")?.value || "").trim();
+    const location = (document.getElementById("locationInput")?.value || "").trim();
+    const type = document.getElementById("typeFilter")?.value || "";
+    const exp = document.getElementById("expFilter")?.value || "";
+    const remote = document.getElementById("remoteFilter")?.checked;
     
-    const hasFilter = search || type || exp || remote;
-    document.getElementById("clearFilters").style.display = hasFilter ? "inline-flex" : "none";
+    const hasFilter = search || location || type || exp || remote;
+    const clearBtn = document.getElementById("clearFilters");
+    if (clearBtn) clearBtn.style.display = hasFilter ? "inline-flex" : "none";
   }
 
   async function applyFilters() {
@@ -1000,43 +1193,56 @@ const appliedArray = Array.from(appliedJobIds);
   sentinel.style.height = '1px';
   sentinel.style.width = '100%';
   sentinel.style.clear = 'both';
-  document.getElementById('jobsGrid').after(sentinel);
+  document.getElementById('jobsGrid')?.after(sentinel);
   observer.observe(sentinel);
-
 
   // Live search + filter events
   let debounceTimer;
   let searchRecordTimer;
-  document.getElementById("searchInput").addEventListener("input", (e) => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(applyFilters, 250);
+  const searchInputEl = document.getElementById("searchInput");
+  if (searchInputEl) {
+    searchInputEl.addEventListener("input", (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(applyFilters, 250);
 
-    // Record search for recommendations (debounced 1.5s to avoid spam)
-    clearTimeout(searchRecordTimer);
-    searchRecordTimer = setTimeout(() => {
-      const q = e.target.value.trim();
-      if (q.length >= 2) {
-        fetch("/api/employee/record-search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: q }),
-        }).catch((err) => console.error("Error tracking search", err));
-      }
-    }, 1500);
-  });
-  document
-    .getElementById("typeFilter")
-    .addEventListener("change", applyFilters);
-  document.getElementById("expFilter").addEventListener("change", applyFilters);
-  document
-    .getElementById("remoteFilter")
-    .addEventListener("change", applyFilters);
+      clearTimeout(searchRecordTimer);
+      searchRecordTimer = setTimeout(() => {
+        const q = e.target.value.trim();
+        if (q.length >= 2) {
+          fetch("/api/employee/record-search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: q }),
+          }).catch((err) => console.error("Error tracking search", err));
+        }
+      }, 1500);
+    });
+  }
+
+  const locationInputEl = document.getElementById("locationInput");
+  if (locationInputEl) {
+    locationInputEl.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(applyFilters, 250);
+    });
+  }
+
+  document.getElementById("typeFilter")?.addEventListener("change", applyFilters);
+  document.getElementById("expFilter")?.addEventListener("change", applyFilters);
+  document.getElementById("remoteFilter")?.addEventListener("change", applyFilters);
+  document.getElementById("clearFilters")?.addEventListener("click", () => window.clearAllFilters());
 
   window.clearAllFilters = function () {
-    document.getElementById("searchInput").value = "";
-    document.getElementById("typeFilter").value = "";
-    document.getElementById("expFilter").value = "";
-    document.getElementById("remoteFilter").checked = false;
+    const sEl = document.getElementById("searchInput");
+    const lEl = document.getElementById("locationInput");
+    const tEl = document.getElementById("typeFilter");
+    const eEl = document.getElementById("expFilter");
+    const rEl = document.getElementById("remoteFilter");
+    if (sEl) sEl.value = "";
+    if (lEl) lEl.value = "";
+    if (tEl) tEl.value = "";
+    if (eEl) eEl.value = "";
+    if (rEl) rEl.checked = false;
     applyFilters();
   };
 

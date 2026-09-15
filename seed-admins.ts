@@ -11,7 +11,7 @@ async function seedAdmins() {
   await db.insert(users).values([
     {
       id: crypto.randomUUID(),
-      email: 'admin@recruitnest.com',
+      email: 'admin@jobned.com',
       passwordHash: adminPasswordHash,
       firstName: 'Admin',
       lastName: 'User',
@@ -21,7 +21,7 @@ async function seedAdmins() {
     },
     {
       id: crypto.randomUUID(),
-      email: 'superadmin@recruitnest.com',
+      email: 'superadmin@jobned.com',
       passwordHash: superadminPasswordHash,
       firstName: 'Super',
       lastName: 'Admin',

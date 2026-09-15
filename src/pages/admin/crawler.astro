@@ -1,0 +1,889 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import { getDb } from "../../lib/db";
+import { crawledJobsQueue, jobPostings } from "../../db/schema";
+import { eq, desc, sql } from "drizzle-orm";
+import { getCrawlerSettings } from "../../lib/crawler/engine";
+
+// @ts-ignore
+const payload = Astro.locals.user;
+if (!payload || payload.userType !== 'masteradmin') {
+  return Astro.redirect('/login');
+}
+
+const db = getDb();
+const settings = await getCrawlerSettings();
+
+// Load queue statistics
+const pendingRow = await db.select({ count: sql<number>`count(*)` }).from(crawledJobsQueue).where(eq(crawledJobsQueue.status, 'pending')).get();
+const publishedQueueRow = await db.select({ count: sql<number>`count(*)` }).from(crawledJobsQueue).where(eq(crawledJobsQueue.status, 'published')).get();
+const totalCrawledLiveRow = await db.select({ count: sql<number>`count(*)` }).from(jobPostings).where(eq(jobPostings.sourceType, 'crawled')).get();
+
+// Load latest 15 queue items
+const queueItems = await db
+  .select()
+  .from(crawledJobsQueue)
+  .orderBy(desc(crawledJobsQueue.crawledAt))
+  .limit(15)
+  .all();
+---
+
+<DashboardLayout title="Automated Job Crawler" userType={payload.userType} activePath="/admin/crawler">
+  <div class="page-container">
+    <div class="page-header-row mb-6">
+      <div>
+        <h1 class="page-title">🕷️ Automated Job Crawler & Rate Limiter</h1>
+        <p class="page-subtitle">Crawl fresh career pages (posted &lt; 24h) and publish on a steady schedule.</p>
+      </div>
+      <div class="header-actions">
+        <button id="runCycleBtn" class="btn btn-primary">
+          <span class="btn-icon">⚡</span> Run Full Cycle Now
+        </button>
+      </div>
+    </div>
+
+    <!-- Statistics Grid -->
+    <div class="stats-grid mb-6">
+      <div class="stat-card">
+        <div class="stat-icon-wrapper orange">
+          <span>⏳</span>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Pending in Queue</span>
+          <span class="stat-value" id="statPending">{pendingRow?.count || 0}</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon-wrapper green">
+          <span>🚀</span>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Published (From Queue)</span>
+          <span class="stat-value" id="statPublishedQueue">{publishedQueueRow?.count || 0}</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon-wrapper purple">
+          <span>🌐</span>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Total Live Crawled Jobs</span>
+          <span class="stat-value" id="statTotalLive">{totalCrawledLiveRow?.count || 0}</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon-wrapper blue">
+          <span>⏱️</span>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Last Run</span>
+          <span class="stat-subtext" id="statLastRun">{settings.lastRunAt ? new Date(settings.lastRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never'}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rate Limiting & Configuration Form -->
+    <div class="card config-card mb-6">
+      <div class="card-header">
+        <h2>⚙️ Publishing Rate & Freshness Settings</h2>
+        <span class="badge-tag green">Active Engine</span>
+      </div>
+
+      <form id="settingsForm" class="settings-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="jobsPerBatch">Jobs to Publish per Batch</label>
+            <div class="input-wrap">
+              <input type="number" id="jobsPerBatch" class="form-input" min="1" max="100" value={settings.jobsPerBatch} required />
+            </div>
+            <p class="form-hint">Currently configured to publish <strong id="hintJobsPerBatch">{settings.jobsPerBatch} jobs</strong> every run.</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="intervalHours">Run Schedule Frequency (Hours)</label>
+            <div class="input-wrap">
+              <input type="number" id="intervalHours" class="form-input" min="1" max="48" value={settings.intervalHours} required />
+            </div>
+            <p class="form-hint">Run publishing schedule every <strong id="hintIntervalHours">{settings.intervalHours} hour(s)</strong>.</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="maxAgeHours">Job Freshness Filter (Max Age in Hours)</label>
+            <div class="input-wrap">
+              <input type="number" id="maxAgeHours" class="form-input" min="1" max="168" value={settings.maxAgeHours} required />
+            </div>
+            <p class="form-hint">Only ingest fresh jobs posted in the last <strong id="hintMaxAgeHours">{settings.maxAgeHours} hours</strong> (strictly ignores older jobs).</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Auto-Publish Status</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="autoPublishEnabled" checked={settings.autoPublishEnabled} />
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Enable Scheduled Auto-Publishing</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-actions mt-4">
+          <button type="submit" class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+          <button type="button" class="btn btn-outline" id="crawlOnlyBtn">🔄 Crawl Fresh Jobs Now</button>
+          <button type="button" class="btn btn-outline" id="clearRecrawlBtn">🧹 Flush & Re-Crawl Queue</button>
+          <button type="button" class="btn btn-outline" id="publishBatchBtn">🚀 Publish Next Batch (<span id="btnBatchLimit">{settings.jobsPerBatch}</span>) Now</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Targeted India-First Intelligent Crawler (Location & Role) -->
+    <div class="card config-card mb-6 targeted-card">
+      <div class="card-header">
+        <div class="targeted-title-wrap">
+          <h2>🎯 India-First Intelligent Crawler (Location & Role)</h2>
+          <p class="targeted-subtitle">Discover fresh jobs tailored to Indian tech hubs (Bangalore, Noida, Gurgaon, Mumbai, Pune, Hyderabad, Delhi NCR, Remote - India). Strictly filters out foreign postings using a multi-factor India Job Scoring Engine (Score &ge; 80).</p>
+        </div>
+        <span class="badge-tag purple">🇮🇳 India Discovery Engine</span>
+      </div>
+
+      <form id="targetedCrawlForm" class="settings-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="targetCountry">Target Country</label>
+            <div class="input-wrap">
+              <select id="targetCountry" class="form-input" disabled style="background: rgba(168, 85, 247, 0.08); font-weight: 700; color: var(--color-text-main);">
+                <option value="India" selected>🇮🇳 India (Strict Filter Active)</option>
+              </select>
+            </div>
+            <p class="form-hint">Crawler strictly ingests verified Indian job opportunities.</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="targetLocation">Target City / Geography</label>
+            <div class="input-wrap">
+              <input type="text" id="targetLocation" class="form-input" placeholder="e.g. Bangalore, Noida, Gurgaon, Mumbai, Pune, Remote - India" value="Bangalore, India" />
+            </div>
+            <div class="city-quick-tags mt-2">
+              <button type="button" class="quick-tag-btn" onclick="document.getElementById('targetLocation').value='Bangalore, India'">📍 Bangalore</button>
+              <button type="button" class="quick-tag-btn" onclick="document.getElementById('targetLocation').value='Noida, India'">📍 Noida</button>
+              <button type="button" class="quick-tag-btn" onclick="document.getElementById('targetLocation').value='Gurgaon, India'">📍 Gurgaon</button>
+              <button type="button" class="quick-tag-btn" onclick="document.getElementById('targetLocation').value='Mumbai, India'">📍 Mumbai</button>
+              <button type="button" class="quick-tag-btn" onclick="document.getElementById('targetLocation').value='Pune, India'">📍 Pune</button>
+              <button type="button" class="quick-tag-btn" onclick="document.getElementById('targetLocation').value='Hyderabad, India'">📍 Hyderabad</button>
+              <button type="button" class="quick-tag-btn" onclick="document.getElementById('targetLocation').value='Lucknow, India'">📍 Lucknow</button>
+              <button type="button" class="quick-tag-btn" onclick="document.getElementById('targetLocation').value='Remote - India'">🏠 Remote (India)</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="targetRole">Target Role / Keywords</label>
+            <div class="input-wrap">
+              <input type="text" id="targetRole" class="form-input" placeholder="e.g. Software Engineer, React Developer, Data Analyst" value="Software Engineer" />
+            </div>
+            <p class="form-hint">Matches exact job title, tech stack keywords, and qualifications.</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="targetTier">Company Category</label>
+            <div class="input-wrap">
+              <select id="targetTier" class="form-input">
+                <option value="all">🌐 All Verified Companies</option>
+                <option value="startup_small" selected>🚀 Emerging Startups & Small Tech (Recommended)</option>
+                <option value="big_tech">🏢 Big Tech & Enterprise</option>
+              </select>
+            </div>
+            <p class="form-hint">Filter between boutique startups or established tech giants.</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="targetLimit">Max Batch Size</label>
+            <div class="input-wrap">
+              <input type="number" id="targetLimit" class="form-input" min="1" max="50" value="10" />
+            </div>
+            <p class="form-hint">Number of matching jobs to stage or publish in this targeted batch.</p>
+          </div>
+        </div>
+
+        <div class="form-actions mt-4 targeted-actions">
+          <button type="button" class="btn btn-outline" id="targetedStageBtn">
+            <span>🎯</span> Search & Stage to Queue
+          </button>
+          <button type="button" class="btn btn-primary" id="targetedPublishBtn">
+            <span>⚡</span> Search & Publish Immediately
+          </button>
+        </div>
+      </form>
+
+      <!-- Targeted Discovery Results Panel -->
+      <div id="targetedResultsPanel" class="targeted-results mt-4" style="display: none;">
+        <div class="results-header">
+          <h3 id="resultsTitle">India Targeted Discovery Results</h3>
+          <span id="resultsCount" class="badge-tag green">0 jobs</span>
+        </div>
+        <div id="resultsList" class="results-list"></div>
+      </div>
+    </div>
+
+    <!-- Live Queue Table -->
+    <div class="card table-card">
+      <div class="card-header">
+        <h2>📋 Staging Queue ({queueItems.length} recent entries)</h2>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Job Title</th>
+              <th>Source</th>
+              <th>Apply Mode</th>
+              <th>Original Posted</th>
+              <th>Queue Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {queueItems.length === 0 ? (
+              <tr>
+                <td colspan="7" class="text-center py-6 text-muted">
+                  No jobs currently in the staging queue. Click "Crawl Fresh Jobs Now" to fetch recent postings.
+                </td>
+              </tr>
+            ) : (
+              queueItems.map((item) => (
+                <tr>
+                  <td>
+                    <strong>{item.companyName}</strong>
+                    {item.companyWebsite && <a href={item.companyWebsite} target="_blank" class="table-sub-link">↗</a>}
+                  </td>
+                  <td>{item.jobTitle}</td>
+                  <td><span class="badge-pill">{item.sourceType}</span></td>
+                  <td>
+                    {item.applyMode === 'redirect' ? (
+                      <span class="badge-pill blue">🌐 Website Redirect</span>
+                    ) : (
+                      <span class="badge-pill green">📩 Native + Email</span>
+                    )}
+                  </td>
+                  <td>
+                    {item.originalPostedAt ? new Date(item.originalPostedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', ' + new Date(item.originalPostedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recent'}
+                  </td>
+                  <td>
+                    <span class={`status-badge status-${item.status}`}>
+                      {item.status}
+                    </span>
+                  </td>
+                  <td>
+                    {item.status === 'published' && item.publishedJobId ? (
+                      <a href={`/jobs/${item.publishedJobId}`} target="_blank" class="btn btn-outline btn-xs">View Live ↗</a>
+                    ) : (
+                      <a href={item.sourceUrl} target="_blank" class="btn btn-outline btn-xs">Source ↗</a>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</DashboardLayout>
+
+<script>
+  // Save Settings
+  const settingsForm = document.getElementById('settingsForm');
+  settingsForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const saveBtn = document.getElementById('saveSettingsBtn') as HTMLButtonElement;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    const jobsPerBatch = (document.getElementById('jobsPerBatch') as HTMLInputElement).value;
+    const intervalHours = (document.getElementById('intervalHours') as HTMLInputElement).value;
+    const maxAgeHours = (document.getElementById('maxAgeHours') as HTMLInputElement).value;
+    const autoPublishEnabled = (document.getElementById('autoPublishEnabled') as HTMLInputElement).checked;
+
+    try {
+      const res = await fetch('/api/admin/crawler/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobsPerBatch, intervalHours, maxAgeHours, autoPublishEnabled })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const hintBatch = document.getElementById('hintJobsPerBatch');
+        if (hintBatch) hintBatch.textContent = `${jobsPerBatch} jobs`;
+        const btnLimit = document.getElementById('btnBatchLimit');
+        if (btnLimit) btnLimit.textContent = `${jobsPerBatch}`;
+
+        if ((window as any).showToast) (window as any).showToast('Crawler settings saved successfully!');
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        if ((window as any).showToast) (window as any).showToast(data.error || 'Failed to save', 'error');
+      }
+    } catch (err) {
+      if ((window as any).showToast) (window as any).showToast('Network error saving settings', 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Settings';
+    }
+  });
+
+  // Action: Crawl Only
+  document.getElementById('crawlOnlyBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('crawlOnlyBtn') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Crawling...';
+
+    try {
+      const res = await fetch('/api/admin/crawler/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'crawl' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if ((window as any).showToast) (window as any).showToast(`Discovered ${data.fetched} jobs (${data.newQueued} new jobs queued)!`);
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        if ((window as any).showToast) (window as any).showToast(data.error || 'Crawl failed', 'error');
+      }
+    } catch (err) {
+      if ((window as any).showToast) (window as any).showToast('Network error running crawl', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔄 Crawl Fresh Jobs Now';
+    }
+  });
+
+  // Action: Flush & Re-Crawl Queue
+  document.getElementById('clearRecrawlBtn')?.addEventListener('click', async () => {
+    if (!confirm('Flush pending queue and re-crawl fresh jobs from all sources?')) return;
+    const btn = document.getElementById('clearRecrawlBtn') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Flushing & Crawling...';
+
+    try {
+      const res = await fetch('/api/admin/crawler/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear_and_recrawl' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if ((window as any).showToast) (window as any).showToast(`Cleared ${data.cleared || 0} old queue items & staged ${data.newQueued} fresh jobs!`);
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        if ((window as any).showToast) (window as any).showToast(data.error || 'Re-crawl failed', 'error');
+      }
+    } catch (err) {
+      if ((window as any).showToast) (window as any).showToast('Network error during re-crawl', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🧹 Flush & Re-Crawl Queue';
+    }
+  });
+
+  // Action: Publish Batch
+  document.getElementById('publishBatchBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('publishBatchBtn') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Publishing Batch...';
+
+    try {
+      const res = await fetch('/api/admin/crawler/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'publish_batch' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if ((window as any).showToast) (window as any).showToast(`Successfully published ${data.publishedCount} jobs to portal! 🎉`);
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        if ((window as any).showToast) (window as any).showToast(data.error || 'Publish failed', 'error');
+      }
+    } catch (err) {
+      if ((window as any).showToast) (window as any).showToast('Network error publishing batch', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🚀 Publish Next Batch Now';
+    }
+  });
+
+  // Action: Run Full Cycle
+  document.getElementById('runCycleBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('runCycleBtn') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Executing Cycle...';
+
+    try {
+      const res = await fetch('/api/admin/crawler/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cycle' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if ((window as any).showToast) (window as any).showToast(`Cycle complete: Queued ${data.queued} jobs, Published ${data.published} jobs!`);
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        if ((window as any).showToast) (window as any).showToast(data.error || 'Cycle failed', 'error');
+      }
+    } catch (err) {
+      if ((window as any).showToast) (window as any).showToast('Network error running cycle', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⚡ Run Full Cycle Now';
+    }
+  });
+
+  // Action: Targeted Crawl & Stage
+  const targetedStageBtn = document.getElementById('targetedStageBtn') as HTMLButtonElement;
+  targetedStageBtn?.addEventListener('click', async () => {
+    const role = (document.getElementById('targetRole') as HTMLInputElement).value;
+    const location = (document.getElementById('targetLocation') as HTMLInputElement).value;
+    const tier = (document.getElementById('targetTier') as HTMLSelectElement).value;
+    const limit = (document.getElementById('targetLimit') as HTMLInputElement).value;
+
+    targetedStageBtn.disabled = true;
+    targetedStageBtn.innerHTML = '<span>🤖</span> JSearch API Crawling & Staging...';
+
+    try {
+      const res = await fetch('/api/admin/crawler/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'targeted_crawl',
+          role,
+          location,
+          tier,
+          limit: limit ? Number(limit) : 10
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if ((window as any).showToast) (window as any).showToast(`JSearch found ${data.found} matching jobs! Staged ${data.newQueued} to queue.`);
+        renderTargetedResults('Staged to Queue', data.jobs || [], data.found, data.newQueued, false);
+        setTimeout(() => window.location.reload(), 2500);
+      } else {
+        if ((window as any).showToast) (window as any).showToast(data.error || 'Targeted crawl failed', 'error');
+      }
+    } catch (err) {
+      if ((window as any).showToast) (window as any).showToast('Network error during targeted crawl', 'error');
+    } finally {
+      targetedStageBtn.disabled = false;
+      targetedStageBtn.innerHTML = '<span>🎯</span> Search & Stage to Queue';
+    }
+  });
+
+  // Action: Targeted Publish Immediately
+  const targetedPublishBtn = document.getElementById('targetedPublishBtn') as HTMLButtonElement;
+  targetedPublishBtn?.addEventListener('click', async () => {
+    const role = (document.getElementById('targetRole') as HTMLInputElement).value;
+    const location = (document.getElementById('targetLocation') as HTMLInputElement).value;
+    const tier = (document.getElementById('targetTier') as HTMLSelectElement).value;
+    const limit = (document.getElementById('targetLimit') as HTMLInputElement).value;
+
+    if (!confirm('Use JSearch API to crawl internet & publish matching jobs live to the job portal right now?')) return;
+
+    targetedPublishBtn.disabled = true;
+    targetedPublishBtn.innerHTML = '<span>🚀</span> JSearch API Publishing Live...';
+
+    try {
+      const res = await fetch('/api/admin/crawler/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'targeted_publish',
+          role,
+          location,
+          tier,
+          limit: limit ? Number(limit) : 10
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if ((window as any).showToast) (window as any).showToast(`JSearch published ${data.publishedCount} targeted jobs live immediately! 🎉`);
+        renderTargetedResults('Published Live to Portal', data.publishedJobs || [], data.found, data.publishedCount, true);
+        setTimeout(() => window.location.reload(), 2500);
+      } else {
+        if ((window as any).showToast) (window as any).showToast(data.error || 'Targeted publish failed', 'error');
+      }
+    } catch (err) {
+      if ((window as any).showToast) (window as any).showToast('Network error during targeted publish', 'error');
+    } finally {
+      targetedPublishBtn.disabled = false;
+      targetedPublishBtn.innerHTML = '<span>⚡</span> Search & Publish Immediately';
+    }
+  });
+
+  function escHtml(str: any): string {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function renderTargetedResults(actionLabel: string, jobs: any[], totalFound: number, count: number, isLive: boolean = false) {
+    const panel = document.getElementById('targetedResultsPanel');
+    const countBadge = document.getElementById('resultsCount');
+    const titleEl = document.getElementById('resultsTitle');
+    const listEl = document.getElementById('resultsList');
+    if (!panel || !countBadge || !titleEl || !listEl) return;
+
+    panel.style.display = 'block';
+    titleEl.textContent = `${actionLabel} (${count} of ${totalFound} matches)`;
+    countBadge.textContent = `${count} jobs`;
+
+    if (jobs.length === 0) {
+      listEl.innerHTML = '<div class="empty-results">No new un-crawled jobs matched the criteria (or all were already queued/published).</div>';
+      return;
+    }
+
+    listEl.innerHTML = jobs.map(j => `
+      <div class="result-item">
+        <div class="result-item-main">
+          <strong class="result-title">${escHtml(j.title)}</strong>
+          <span class="result-company">${escHtml(j.company)} &bull; 📍 ${escHtml(j.location)}</span>
+        </div>
+        ${isLive ? `<a href="/jobs/${encodeURIComponent(j.id)}" target="_blank" class="btn btn-outline btn-xs">View Live ↗</a>` : `<span class="badge-pill green">Staged</span>`}
+      </div>
+    `).join('');
+  }
+</script>
+
+<style>
+  .page-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .page-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .page-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+  }
+  .page-subtitle {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    position: relative;
+    z-index: 1;
+  }
+  .stat-card:hover {
+    transform: none !important;
+    box-shadow: var(--shadow-sm);
+    border-color: rgba(167, 139, 250, 0.3);
+  }
+  .stat-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    flex-shrink: 0;
+  }
+  .stat-icon-wrapper.orange { background: rgba(249, 115, 22, 0.12); color: #f97316; }
+  .stat-icon-wrapper.green { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+  .stat-icon-wrapper.purple { background: rgba(124, 58, 237, 0.12); color: #7c3aed; }
+  .stat-icon-wrapper.blue { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+  .stat-content {
+    display: flex;
+    flex-direction: column;
+  }
+  .stat-label {
+    font-size: 0.775rem;
+    color: var(--color-text-muted);
+    font-weight: 500;
+  }
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text-main);
+  }
+  .stat-subtext {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-main);
+  }
+  .config-card, .table-card {
+    padding: 1.5rem;
+    border-radius: var(--border-radius-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    position: relative;
+    z-index: 1;
+    transition: border-color 0.2s ease;
+  }
+  .config-card:hover, .table-card:hover,
+  .card.config-card:hover, .card.table-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    background: var(--color-surface) !important;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.75rem;
+  }
+  .card-header h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0;
+  }
+  .targeted-title-wrap h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+  }
+  .targeted-subtitle {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+  .badge-tag {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-weight: 600;
+  }
+  .badge-tag.green { background: rgba(16, 185, 129, 0.15); color: #059669; }
+  .badge-tag.purple { background: rgba(124, 58, 237, 0.15); color: #7c3aed; }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.25rem;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+  .form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+  }
+  .form-input {
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    background: var(--color-bg);
+    color: var(--color-text-main);
+    font-size: 0.9rem;
+    box-sizing: border-box;
+  }
+  .form-hint {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin: 0.35rem 0 0 0;
+  }
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .targeted-actions {
+    background: rgba(124, 58, 237, 0.03);
+    padding: 1rem;
+    border-radius: var(--border-radius-md);
+    border: 1px dashed var(--color-border);
+  }
+  .toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    user-select: none;
+    margin-top: 0.25rem;
+  }
+  .toggle-switch input {
+    accent-color: var(--color-primary);
+    width: 18px;
+    height: 18px;
+  }
+  .toggle-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .data-table th, .data-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .data-table th {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: var(--color-bg);
+  }
+  .table-sub-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    margin-left: 0.25rem;
+  }
+  .badge-pill {
+    display: inline-flex;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+  }
+  .badge-pill.blue { background: rgba(59, 130, 246, 0.12); color: #2563eb; border-color: rgba(59, 130, 246, 0.3); }
+  .badge-pill.green { background: rgba(16, 185, 129, 0.12); color: #059669; border-color: rgba(16, 185, 129, 0.3); }
+  .status-badge {
+    display: inline-flex;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.725rem;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+  .status-pending { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+  .status-published { background: rgba(16, 185, 129, 0.15); color: #059669; }
+  .status-failed { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+  .btn-xs {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+  }
+  .targeted-results {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    padding: 1rem;
+  }
+  .results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+  .results-header h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0;
+  }
+  .results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    padding: 0.6rem 0.85rem;
+    border-radius: var(--border-radius-sm);
+  }
+  .result-item-main {
+    display: flex;
+    flex-direction: column;
+  }
+  .result-title {
+    font-size: 0.875rem;
+    color: var(--color-text-main);
+  }
+  .result-company {
+    font-size: 0.775rem;
+    color: var(--color-text-muted);
+  }
+  .empty-results {
+    font-size: 0.825rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: 1rem;
+  }
+  .city-quick-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+  }
+  .quick-tag-btn {
+    background: rgba(168, 85, 247, 0.08);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    color: var(--color-text-main, #1e293b);
+    padding: 0.2rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.725rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .quick-tag-btn:hover {
+    background: #a855f7;
+    color: #ffffff;
+    border-color: #a855f7;
+  }
+
+  /* Mobile Responsiveness Fixes */
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  @media (max-width: 640px) {
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+    .targeted-actions {
+      flex-direction: column;
+    }
+    .targeted-actions .btn {
+      width: 100%;
+      min-width: unset;
+    }
+    .page-header-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>

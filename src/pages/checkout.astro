@@ -1,0 +1,997 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { getDb } from "../lib/db";
+import { plans, users } from "../db/schema";
+import { eq } from "drizzle-orm";
+import { verifyToken } from "../lib/auth";
+
+// 1. Authenticate User
+// @ts-ignore
+let user = Astro.locals?.user;
+
+if (!user) {
+  const token = Astro.cookies.get("auth_token")?.value;
+  if (token) {
+    user = await verifyToken(token);
+  }
+}
+
+const planId = Astro.url.searchParams.get("plan") || "P001";
+
+if (!user) {
+  return Astro.redirect(`/register?plan=${encodeURIComponent(planId)}&type=employer`);
+}
+
+const db = getDb();
+const dbUser = await db.select().from(users).where(eq(users.id, user.userId || user.id)).get();
+const targetPlan = await db.select().from(plans).where(eq(plans.planId, planId)).get();
+
+const plan = targetPlan || {
+  planId: "P001",
+  planName: "Basic Plan",
+  price: 1,
+  currency: "USD",
+  jobPostingLimit: 10,
+  resumeLimit: 500,
+  candidateApplyLimit: 200
+};
+
+const price = Number(plan.price) || 0;
+const currency = plan.currency || "USD";
+const symbol = currency === "INR" ? "₹" : "$";
+
+// If free plan, redirect directly to employer dashboard
+if (price <= 0) {
+  return Astro.redirect("/employer");
+}
+---
+
+<Layout
+  title={`Checkout - ${plan.planName} - JobNed`}
+  description="Complete your subscription payment to activate your employer recruiter account."
+>
+  <div class="checkout-wrapper">
+    <!-- Top Navigation Header -->
+    <header class="checkout-header">
+      <div class="header-inner">
+        <a href="/" class="brand-logo">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+          <span>Job<span class="highlight">Ned</span></span>
+        </a>
+
+        <div class="security-badge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span>256-Bit SSL Encrypted Payment</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="checkout-container">
+      <div class="checkout-grid">
+        
+        <!-- Left Column: Order Summary & Account Details -->
+        <div class="checkout-summary-col">
+          <div class="summary-card card">
+            <div class="summary-card-header">
+              <span class="plan-tag">Selected Subscription</span>
+              <h1 class="plan-title">{plan.planName}</h1>
+              <p class="plan-subtitle">Monthly Recruiter Access &bull; Instant Activation</p>
+            </div>
+
+            <div class="plan-features">
+              <div class="feature-item">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span><strong>{plan.jobPostingLimit} Active Job Postings</strong></span>
+              </div>
+              <div class="feature-item">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span><strong>{plan.resumeLimit.toLocaleString()} Resumes Received</strong> Limit</span>
+              </div>
+              <div class="feature-item">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span><strong>{plan.candidateApplyLimit} Monthly Job Applications</strong></span>
+              </div>
+              <div class="feature-item">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span>AI Resume Match Scoring &amp; Candidate Pipeline</span>
+              </div>
+            </div>
+
+            <div class="cost-breakdown">
+              <div class="cost-row">
+                <span>{plan.planName} (1 Month)</span>
+                <span>{symbol}{price.toFixed(2)}</span>
+              </div>
+              <div class="cost-row">
+                <span>Platform Processing Fee</span>
+                <span class="text-success">Free ($0.00)</span>
+              </div>
+              <div class="cost-divider"></div>
+              <div class="cost-row total-row">
+                <span>Total Due Today</span>
+                <span class="total-amount">{symbol}{price.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Account info -->
+          <div class="account-card card">
+            <div class="account-card-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span>Subscribing Account</span>
+            </div>
+            <div class="account-details">
+              <p><strong>Name:</strong> {dbUser?.firstName || ''} {dbUser?.lastName || ''}</p>
+              <p><strong>Email:</strong> {dbUser?.email || user.email || ''}</p>
+              <p class="account-badge">Employer Account &bull; Awaiting Payment</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Payment Terminal -->
+        <div class="checkout-pay-col">
+          <div class="payment-card card">
+            <div class="payment-card-header">
+              <div class="rzp-brand-badge">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M2 17L12 22L22 17" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M2 12L12 17L22 12" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+                </svg>
+                <span>Razorpay Secure Gateway</span>
+              </div>
+              <h2>Complete Your Payment</h2>
+              <p>Pay <strong>{symbol}{price.toFixed(2)}</strong> to activate your recruiter dashboard instantly.</p>
+            </div>
+
+            <div class="payment-action-box">
+              <div class="amount-display">
+                <span class="amount-label">Amount Payable</span>
+                <span class="amount-value">{symbol}{price.toFixed(2)}</span>
+              </div>
+
+              <button type="button" id="payNowBtn" class="btn btn-primary w-full pay-now-btn">
+                <span id="payBtnSpinner" class="btn-spinner" style="display: none;"></span>
+                <span id="payBtnText">Pay {symbol}{price.toFixed(2)} via Razorpay</span>
+              </button>
+
+              <p class="terms-note">By proceeding with payment, your {plan.planName} will be activated immediately.</p>
+            </div>
+
+            <div class="payment-features-grid">
+              <div class="pf-item">
+                <span class="pf-icon">💳</span>
+                <span>Credit &amp; Debit Cards</span>
+              </div>
+              <div class="pf-item">
+                <span class="pf-icon">📱</span>
+                <span>UPI &amp; QR Scan</span>
+              </div>
+              <div class="pf-item">
+                <span class="pf-icon">🏦</span>
+                <span>Net Banking</span>
+              </div>
+              <div class="pf-item">
+                <span class="pf-icon">⚡</span>
+                <span>Instant Account Activation</span>
+              </div>
+            </div>
+
+            <div id="paymentStatusBox" class="status-box" style="display: none;"></div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Razorpay Simulation Modal for Sandbox Mode -->
+  <div id="rzpSimModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card rzp-modal-card">
+      <div class="rzp-brand-header">
+        <div class="rzp-brand-left">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+          <span class="rzp-brand-title">Razorpay <span class="badge-trusted">SECURE</span></span>
+        </div>
+        <button type="button" class="rzp-close" id="closeRzpSimModal" aria-label="Close payment modal">&times;</button>
+      </div>
+
+      <div class="rzp-order-bar">
+        <div>
+          <span class="rzp-order-label">JobNed Subscription</span>
+          <h3 class="rzp-plan-name">{plan.planName}</h3>
+        </div>
+        <div class="rzp-price-tag">{symbol}{price.toFixed(2)}</div>
+      </div>
+
+      <div class="rzp-test-notice">
+        <span class="pulse-dot"></span>
+        <span>Razorpay Sandbox Mode &bull; Test Gateway Ready</span>
+      </div>
+
+      <div class="rzp-methods">
+        <label class="rzp-method active">
+          <input type="radio" name="rzp_method" value="card" checked />
+          <div class="method-info">
+            <span class="method-name">💳 Credit / Debit Card</span>
+            <span class="method-desc">Visa, Mastercard, RuPay &amp; Amex</span>
+          </div>
+        </label>
+        <label class="rzp-method">
+          <input type="radio" name="rzp_method" value="upi" />
+          <div class="method-info">
+            <span class="method-name">📱 UPI / QR</span>
+            <span class="method-desc">Google Pay, PhonePe, Paytm, BHIM</span>
+          </div>
+        </label>
+        <label class="rzp-method">
+          <input type="radio" name="rzp_method" value="netbanking" />
+          <div class="method-info">
+            <span class="method-name">🏦 Net Banking</span>
+            <span class="method-desc">All major banks supported</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="rzp-sim-actions">
+        <button type="button" class="btn btn-primary w-full rzp-pay-btn" id="simConfirmPayBtn">
+          Pay {symbol}{price.toFixed(2)} &amp; Activate Account
+        </button>
+        <button type="button" class="btn btn-outline w-full" id="simCancelPayBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <script define:vars={{ planId, planPrice: price, planCurrency: currency, planName: plan.planName, userEmail: dbUser?.email || user.email || '', userName: `${dbUser?.firstName || ''} ${dbUser?.lastName || ''}`.trim() }}>
+    let currentOrderData = null;
+    const payBtn = document.getElementById('payNowBtn');
+    const payBtnText = document.getElementById('payBtnText');
+    const payBtnSpinner = document.getElementById('payBtnSpinner');
+    const statusBox = document.getElementById('paymentStatusBox');
+    const rzpModal = document.getElementById('rzpSimModal');
+
+    function showStatus(msg, type = 'info') {
+      statusBox.style.display = 'block';
+      statusBox.className = `status-box status-${type}`;
+      statusBox.innerHTML = msg;
+    }
+
+    async function ensureRazorpayScript() {
+      if (typeof window.Razorpay !== 'undefined') return true;
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.onload = () => resolve(true);
+        s.onerror = () => resolve(false);
+        document.body.appendChild(s);
+      });
+    }
+
+    async function launchPayment() {
+      payBtn.disabled = true;
+      payBtnSpinner.style.display = 'inline-block';
+      payBtnText.innerText = 'Connecting to Gateway...';
+
+      try {
+        const orderRes = await fetch('/api/payments/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId, billingCycle: 'monthly' })
+        });
+
+        const orderData = await orderRes.json();
+
+        if (!orderRes.ok) {
+          showStatus(orderData.error || 'Failed to initialize payment.', 'error');
+          payBtn.disabled = false;
+          payBtnSpinner.style.display = 'none';
+          payBtnText.innerText = `Pay $${planPrice} via Razorpay`;
+          return;
+        }
+
+        currentOrderData = { ...orderData, planId, billingCycle: 'monthly' };
+
+        await ensureRazorpayScript();
+
+        const isPlaceholderKey = !orderData.keyId ||
+          orderData.keyId.includes('placeholder') ||
+          orderData.keyId.includes('dummy') ||
+          orderData.orderId.startsWith('order_mock_');
+
+        if (!isPlaceholderKey && typeof window.Razorpay !== 'undefined') {
+          try {
+            const options = {
+              key: orderData.keyId,
+              amount: orderData.amount,
+              currency: orderData.currency,
+              name: "JobNed",
+              description: `${planName} Subscription`,
+              order_id: orderData.orderId,
+              prefill: {
+                name: userName || orderData.userName || "",
+                email: userEmail || orderData.userEmail || ""
+              },
+              theme: { color: "#4f46e5" },
+              handler: async function (response) {
+                const finalOrderId = response.razorpay_order_id || currentOrderData?.orderId || orderData?.orderId;
+                await verifyPayment(finalOrderId, response.razorpay_payment_id, response.razorpay_signature);
+              },
+              modal: {
+                ondismiss: async function () {
+                  payBtn.disabled = false;
+                  payBtnSpinner.style.display = 'none';
+                  payBtnText.innerText = `Pay ${symbol}${price.toFixed(2)} via Razorpay`;
+
+                  // If user paid from UPI mobile app and closed modal, check order status
+                  if (currentOrderData?.orderId) {
+                    await verifyPayment(currentOrderData.orderId, null, null, true);
+                  }
+                }
+              }
+            };
+
+            const rzp = new window.Razorpay(options);
+
+            rzp.on('payment.failed', function (response) {
+              console.error('Razorpay Payment Failed:', response.error);
+              const errDesc = response.error?.description || response.error?.reason || 'Payment failed or was blocked by gateway.';
+              showStatus(`❌ <strong>Payment Failed:</strong> ${errDesc}`, 'error');
+              payBtn.disabled = false;
+              payBtnSpinner.style.display = 'none';
+              payBtnText.innerText = `Try Again - Pay ${symbol}${price.toFixed(2)}`;
+            });
+
+            rzp.open();
+            return;
+          } catch (e) {
+            console.warn('Real Razorpay failed, using test gateway fallback:', e);
+          }
+        }
+
+        // Open Sandbox Test Gateway Modal
+        rzpModal.style.display = 'flex';
+        payBtn.disabled = false;
+        payBtnSpinner.style.display = 'none';
+        payBtnText.innerText = `Pay ${symbol}${price.toFixed(2)} via Razorpay`;
+
+      } catch (err) {
+        console.error('Payment Error:', err);
+        showStatus('Network error while connecting to payment gateway.', 'error');
+        payBtn.disabled = false;
+        payBtnSpinner.style.display = 'none';
+        payBtnText.innerText = `Pay ${symbol}${price.toFixed(2)} via Razorpay`;
+      }
+    }
+
+    async function verifyPayment(orderId, paymentId, signature, silentCheck = false) {
+      const confirmBtn = document.getElementById('simConfirmPayBtn');
+      if (confirmBtn) {
+        confirmBtn.innerText = 'Verifying with Server...';
+        confirmBtn.disabled = true;
+      }
+
+      if (!silentCheck) {
+        payBtn.disabled = true;
+        payBtnSpinner.style.display = 'inline-block';
+        payBtnText.innerText = 'Verifying with Server...';
+        showStatus('🔄 Verifying payment and activating your subscription... Please wait.', 'info');
+      }
+
+      try {
+        const verifyRes = await fetch('/api/payments/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId,
+            billingCycle: 'monthly',
+            razorpay_order_id: orderId,
+            razorpay_payment_id: paymentId,
+            razorpay_signature: signature
+          })
+        });
+
+        const verifyData = await verifyRes.json();
+
+        if (verifyRes.ok && verifyData.success) {
+          showStatus('🎉 Payment successful! Your plan is activated. Redirecting to your dashboard...', 'success');
+          rzpModal.style.display = 'none';
+          payBtn.disabled = true;
+          payBtnSpinner.style.display = 'none';
+          payBtnText.innerText = 'Subscription Activated ✓';
+          setTimeout(() => {
+            window.location.href = '/employer';
+          }, 1200);
+          return;
+        }
+
+        // Handle 202 Accepted (Payment is pending from UPI / Bank)
+        if (verifyRes.status === 202 && verifyData.pending) {
+          showStatus('⏳ Payment is awaiting confirmation from UPI / Bank. Checking again in 3 seconds...', 'info');
+          setTimeout(() => {
+            verifyPayment(orderId, paymentId, signature, false);
+          }, 3000);
+          return;
+        }
+
+        if (!silentCheck) {
+          const errMsg = verifyData.error || 'Payment verification failed.';
+          showStatus(`❌ ${errMsg}`, 'error');
+          payBtn.disabled = false;
+          payBtnSpinner.style.display = 'none';
+          payBtnText.innerText = `Pay ${symbol}${price.toFixed(2)} via Razorpay`;
+          if (confirmBtn) {
+            confirmBtn.innerText = 'Pay & Activate Account';
+            confirmBtn.disabled = false;
+          }
+        } else {
+          // If silent check after closing modal, provide manual check button
+          showStatus(`If you have completed the payment in your UPI app, please <button type="button" id="manualVerifyBtn" class="btn btn-sm btn-outline" style="margin-left: 0.5rem; padding: 0.25rem 0.75rem; font-size: 0.82rem; border-radius: 6px;">Check Status 🔄</button>`, 'info');
+          document.getElementById('manualVerifyBtn')?.addEventListener('click', () => {
+            verifyPayment(orderId, paymentId, signature, false);
+          });
+        }
+      } catch (err) {
+        if (!silentCheck) {
+          showStatus('Network error while verifying payment.', 'error');
+          payBtn.disabled = false;
+          payBtnSpinner.style.display = 'none';
+          payBtnText.innerText = `Pay ${symbol}${price.toFixed(2)} via Razorpay`;
+          if (confirmBtn) {
+            confirmBtn.innerText = 'Pay & Activate Account';
+            confirmBtn.disabled = false;
+          }
+        }
+      }
+    }
+
+    // Event Listeners
+    payBtn.addEventListener('click', launchPayment);
+
+    document.getElementById('closeRzpSimModal')?.addEventListener('click', () => {
+      rzpModal.style.display = 'none';
+    });
+    document.getElementById('simCancelPayBtn')?.addEventListener('click', () => {
+      rzpModal.style.display = 'none';
+    });
+
+    document.getElementById('simConfirmPayBtn')?.addEventListener('click', async () => {
+      if (!currentOrderData) return;
+      const mockPaymentId = `pay_sim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const mockSignature = `sig_sim_${Date.now()}`;
+      await verifyPayment(currentOrderData.orderId, mockPaymentId, mockSignature);
+    });
+
+    // Automatically trigger payment popup after landing on checkout
+    setTimeout(() => {
+      launchPayment();
+    }, 600);
+  </script>
+</Layout>
+
+<style>
+  .checkout-wrapper {
+    min-height: 100vh;
+    background: var(--color-bg, #0f172a);
+    color: var(--color-text-main, #f8fafc);
+  }
+
+  .checkout-header {
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+    padding: 1rem 0;
+  }
+
+  :global([data-theme="light"]) .checkout-header {
+    background: rgba(255, 255, 255, 0.9);
+  }
+
+  .header-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    text-decoration: none;
+    color: var(--color-text-main, #ffffff);
+  }
+
+  .highlight {
+    color: var(--color-primary, #6366f1);
+  }
+
+  .security-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: #10b981;
+    font-weight: 600;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 0.35rem 0.75rem;
+    border-radius: 50px;
+  }
+
+  .checkout-container {
+    max-width: 1050px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem 1.5rem;
+  }
+
+  .checkout-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .summary-card, .account-card, .payment-card {
+    background: var(--color-surface, #1e293b);
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  }
+
+  :global([data-theme="light"]) .summary-card,
+  :global([data-theme="light"]) .account-card,
+  :global([data-theme="light"]) .payment-card {
+    background: #ffffff;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+  }
+
+  .account-card {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+  }
+
+  .account-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    color: var(--color-text-main, #ffffff);
+    margin-bottom: 0.85rem;
+    font-size: 0.95rem;
+  }
+
+  .account-details p {
+    margin: 0.3rem 0;
+    font-size: 0.88rem;
+    color: var(--color-text-muted, #94a3b8);
+  }
+
+  .account-details strong {
+    color: var(--color-text-main, #ffffff);
+  }
+
+  .account-badge {
+    display: inline-block;
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-top: 0.5rem !important;
+  }
+
+  .plan-tag {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: var(--color-primary, #6366f1);
+  }
+
+  .plan-title {
+    font-size: 2rem;
+    font-weight: 800;
+    margin: 0.3rem 0;
+    letter-spacing: -0.02em;
+  }
+
+  .plan-subtitle {
+    color: var(--color-text-muted, #94a3b8);
+    font-size: 0.9rem;
+    margin: 0 0 1.5rem 0;
+  }
+
+  .plan-features {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.25rem 0;
+    border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: 0.92rem;
+    color: var(--color-text-muted, #cbd5e1);
+  }
+
+  .feature-item strong {
+    color: var(--color-text-main, #ffffff);
+  }
+
+  .cost-breakdown {
+    padding-top: 1.25rem;
+  }
+
+  .cost-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.92rem;
+    color: var(--color-text-muted, #94a3b8);
+    margin-bottom: 0.6rem;
+  }
+
+  .text-success {
+    color: #10b981;
+    font-weight: 600;
+  }
+
+  .cost-divider {
+    height: 1px;
+    background: var(--color-border, rgba(255, 255, 255, 0.1));
+    margin: 1rem 0;
+  }
+
+  .total-row {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--color-text-main, #ffffff);
+  }
+
+  .total-amount {
+    font-size: 1.5rem;
+    color: #10b981;
+  }
+
+  /* Payment Terminal (Right side) */
+  .rzp-brand-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #60a5fa;
+    padding: 0.3rem 0.75rem;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .payment-card-header h2 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin: 0 0 0.4rem 0;
+    letter-spacing: -0.02em;
+  }
+
+  .payment-card-header p {
+    color: var(--color-text-muted, #94a3b8);
+    font-size: 0.92rem;
+    margin: 0 0 1.5rem 0;
+  }
+
+  .payment-action-box {
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  :global([data-theme="light"]) .payment-action-box {
+    background: #f8fafc;
+  }
+
+  .amount-display {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1.25rem;
+  }
+
+  .amount-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--color-text-muted, #94a3b8);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .amount-value {
+    font-size: 2.25rem;
+    font-weight: 900;
+    color: var(--color-text-main, #ffffff);
+    margin-top: 0.2rem;
+  }
+
+  .pay-now-btn {
+    padding: 1rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .btn-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #ffffff;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .terms-note {
+    font-size: 0.78rem;
+    color: var(--color-text-muted, #94a3b8);
+    margin: 1rem 0 0 0;
+  }
+
+  .payment-features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  }
+
+  .pf-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--color-text-muted, #94a3b8);
+  }
+
+  .status-box {
+    margin-top: 1.25rem;
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    text-align: center;
+  }
+
+  .status-info {
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+  }
+
+  .status-success {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+  }
+
+  .status-error {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+  }
+
+  /* Modal Backdrop & Simulator Card */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(10, 15, 30, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+  }
+
+  .modal-card {
+    background: var(--color-surface, #1e293b);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6);
+    color: var(--color-text-main, #f8fafc);
+  }
+
+  .rzp-modal-card {
+    overflow: hidden;
+    border: 1px solid #1e3a8a;
+  }
+
+  .rzp-brand-header {
+    background: linear-gradient(135deg, #0c2340 0%, #172554 100%);
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  }
+
+  .rzp-brand-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .rzp-brand-title {
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: #ffffff;
+  }
+
+  .badge-trusted {
+    background: rgba(59, 130, 246, 0.25);
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
+    font-size: 0.68rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+
+  .rzp-close {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  .rzp-order-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem;
+    background: rgba(15, 23, 42, 0.5);
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  }
+
+  .rzp-order-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    color: var(--color-text-muted, #94a3b8);
+    font-weight: 700;
+  }
+
+  .rzp-plan-name {
+    margin: 0.2rem 0 0 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .rzp-price-tag {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #10b981;
+  }
+
+  .rzp-test-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.25rem;
+    background: rgba(16, 185, 129, 0.1);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #34d399;
+  }
+
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35);
+  }
+
+  .rzp-methods {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .rzp-method {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+    background: var(--color-bg, #0f172a);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .rzp-method:hover, .rzp-method.active {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.08);
+  }
+
+  .rzp-method input[type="radio"] {
+    accent-color: #3b82f6;
+  }
+
+  .method-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .method-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #ffffff;
+  }
+
+  .method-desc {
+    font-size: 0.75rem;
+    color: var(--color-text-muted, #94a3b8);
+  }
+
+  .rzp-sim-actions {
+    padding: 0 1.25rem 1.25rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .rzp-pay-btn {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border: none;
+    font-size: 1rem;
+    padding: 0.85rem;
+  }
+
+  @media (max-width: 900px) {
+    .checkout-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

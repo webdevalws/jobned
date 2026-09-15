@@ -344,11 +344,11 @@ if (!payload || payload.userType !== "employee") {
 </style>
 
 <script>
-  const STORAGE_KEY = "recruitnest_saved_jobs";
+  const STORAGE_KEY = "jobned_saved_jobs";
 
   function getSavedJobs() {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem("recruitnest_saved_jobs") || "[]");
     } catch {
       return [];
     }
@@ -479,7 +479,7 @@ if (!payload || payload.userType !== "employee") {
             </div>
             <button class="remove-btn" onclick="removeSavedJob('${job.id}')" title="Remove bookmark">🗑</button>
           </div>
-          <p class="saved-job-desc">${escHtml((job.description || "").slice(0, 120))}${(job.description || "").length > 120 ? "…" : ""}</p>
+          <p class="saved-job-desc">${(() => { const clean = (job.description || "").replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim(); const snippet = clean.length > 120 ? clean.slice(0, 120) + "…" : clean; return escHtml(snippet); })()}</p>
           <div class="saved-card-footer">
             <div class="tags">
               ${job.locationRemote ? '<span class="tag tag-green">🌐 Remote</span>' : ""}

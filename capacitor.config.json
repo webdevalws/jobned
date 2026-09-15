@@ -1,6 +1,6 @@
 {
-  "appId": "com.recruitnest.app",
-  "appName": "RecruitNest",
+  "appId": "com.jobned.app",
+  "appName": "JobNed",
   "webDir": "dist",
   "server": {
     "url": "https://recruitnest.prashantsinghstd.workers.dev",

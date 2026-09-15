@@ -53,8 +53,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const linkedinRegex = /^https?:\/\/(www\.)?linkedin\.com\/(in|pub|profile)\/[a-zA-Z0-9%\-_]+(\/.*)?$/i;
     if (!normalizedLinkedin || !linkedinRegex.test(normalizedLinkedin)) {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid LinkedIn profile URL. Please provide a valid URL like https://linkedin.com/in/yourprofile' 
+      return new Response(JSON.stringify({
+        error: 'Invalid LinkedIn profile URL. Please provide a valid URL like https://linkedin.com/in/yourprofile'
       }), { status: 400 });
     }
 
@@ -64,7 +64,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // @ts-ignore
-    const bucket = env.BUCKET;
+    const bucket = env?.BUCKET;
     let resumeArrayBuffer: ArrayBuffer | null = null;
     let resumeContentType = 'application/pdf';
 
@@ -73,19 +73,35 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (useDefaultResume || !hasNewResumeFile) {
       // Must have default resume configured
       if (!candidateRecord?.defaultResumeUrl) {
-        return new Response(JSON.stringify({ 
-          error: 'No default resume found in your profile. Please upload a resume PDF to apply.' 
+        return new Response(JSON.stringify({
+          error: 'No default resume found in your profile. Please upload a resume PDF to apply.'
         }), { status: 400 });
       }
 
-      // Fetch resume from R2 or external URL
+      // Fetch resume from R2 or base64 or external URL
       const defaultUrl = candidateRecord.defaultResumeUrl;
-      if (defaultUrl.startsWith('/api/resumes/')) {
+      if (defaultUrl.startsWith('data:application/pdf;base64,')) {
+        try {
+          const base64Str = defaultUrl.replace(/^data:application\/pdf;base64,/, '');
+          const binaryStr = atob(base64Str);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          resumeArrayBuffer = bytes.buffer;
+        } catch (b64Err) {
+          console.warn('Error parsing base64 default resume:', b64Err);
+        }
+      } else if (defaultUrl.startsWith('/api/resumes/')) {
         const r2Key = defaultUrl.replace('/api/resumes/', '');
         if (bucket) {
-          const obj = await bucket.get(r2Key);
-          if (obj) {
-            resumeArrayBuffer = await obj.arrayBuffer();
+          try {
+            const obj = await bucket.get(r2Key);
+            if (obj) {
+              resumeArrayBuffer = await obj.arrayBuffer();
+            }
+          } catch (r2Err) {
+            console.warn('Error fetching default resume from R2:', r2Err);
           }
         }
       }
@@ -102,8 +118,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
 
       if (!resumeArrayBuffer) {
-        return new Response(JSON.stringify({ 
-          error: 'Could not load your default resume file. Please upload a new resume.' 
+        return new Response(JSON.stringify({
+          error: 'Could not load your default resume file. Please upload a new resume.'
         }), { status: 400 });
       }
     } else {
@@ -188,37 +204,69 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Store Application Snapshot in R2 Bucket
     const filename = `resume_${applicationId}.pdf`;
-    if (bucket && resumeArrayBuffer) {
-      await bucket.put(filename, resumeArrayBuffer, {
-        httpMetadata: { contentType: resumeContentType }
-      });
+    let resumeUrl = `/api/resumes/${filename}`;
+    if (resumeArrayBuffer) {
+      if (bucket) {
+        try {
+          await bucket.put(filename, resumeArrayBuffer, {
+            httpMetadata: { contentType: resumeContentType }
+          });
+        } catch (r2Err) {
+          console.warn('Could not put application resume to R2, using data URL fallback:', r2Err);
+          const base64 = Buffer.from(resumeArrayBuffer).toString('base64');
+          resumeUrl = `data:application/pdf;base64,${base64}`;
+        }
+      } else {
+        console.warn('R2 bucket binding not found. Using data URL fallback for application resume.');
+        const base64 = Buffer.from(resumeArrayBuffer).toString('base64');
+        resumeUrl = `data:application/pdf;base64,${base64}`;
+      }
     }
 
-    const resumeUrl = `/api/resumes/${filename}`;
-
     // If candidate asked to save this new uploaded resume as their default resume
-    if (hasNewResumeFile && saveAsDefault && bucket && resumeArrayBuffer) {
-      const defaultFilename = `default_resume_${user.userId}.pdf`;
-      await bucket.put(defaultFilename, resumeArrayBuffer, {
-        httpMetadata: { contentType: 'application/pdf' },
-        customMetadata: { uploadedBy: user.userId, uploadedAt: new Date().toISOString() }
-      });
+    if (hasNewResumeFile && saveAsDefault && resumeArrayBuffer) {
+      let defaultFilenameUrl = `/api/resumes/default_resume_${user.userId}.pdf`;
+      if (bucket) {
+        try {
+          const defaultFilename = `default_resume_${user.userId}.pdf`;
+          await bucket.put(defaultFilename, resumeArrayBuffer, {
+            httpMetadata: { contentType: 'application/pdf' },
+            customMetadata: { uploadedBy: user.userId, uploadedAt: new Date().toISOString() }
+          });
+        } catch (r2Err) {
+          const base64 = Buffer.from(resumeArrayBuffer).toString('base64');
+          defaultFilenameUrl = `data:application/pdf;base64,${base64}`;
+        }
+      } else {
+        const base64 = Buffer.from(resumeArrayBuffer).toString('base64');
+        defaultFilenameUrl = `data:application/pdf;base64,${base64}`;
+      }
       await db.update(users)
-        .set({ defaultResumeUrl: `/api/resumes/${defaultFilename}`, updatedAt: new Date() })
+        .set({ defaultResumeUrl: defaultFilenameUrl, updatedAt: new Date() })
         .where(eq(users.id, user.userId));
     }
 
-    if (photoFile && photoFile instanceof File && photoFile.size > 0 && bucket) {
+    if (photoFile && photoFile instanceof File && photoFile.size > 0) {
       let ext = 'jpg';
       if (photoFile.type === 'image/png') ext = 'png';
       else if (photoFile.type === 'image/webp') ext = 'webp';
-      
+
       const photoFilename = `photo_${applicationId}.${ext}`;
       const photoBuffer = await photoFile.arrayBuffer();
-      await bucket.put(photoFilename, photoBuffer, {
-        httpMetadata: { contentType: photoFile.type }
-      });
-      photoUrl = `/api/resumes/${photoFilename}`;
+      if (bucket) {
+        try {
+          await bucket.put(photoFilename, photoBuffer, {
+            httpMetadata: { contentType: photoFile.type }
+          });
+          photoUrl = `/api/resumes/${photoFilename}`;
+        } catch (r2Err) {
+          const base64 = Buffer.from(photoBuffer).toString('base64');
+          photoUrl = `data:${photoFile.type};base64,${base64}`;
+        }
+      } else {
+        const base64 = Buffer.from(photoBuffer).toString('base64');
+        photoUrl = `data:${photoFile.type};base64,${base64}`;
+      }
     }
 
     const customAnswersRaw = formData.get('screeningAnswers') as string || null;
@@ -226,7 +274,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (customAnswersRaw) {
       try {
         parsedScreeningAnswers = JSON.parse(customAnswersRaw);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const customAnswers = {
@@ -237,48 +285,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       screeningAnswers: parsedScreeningAnswers
     };
 
-    // --- AI Resume Evaluation using candidate-ranker ---
     let aiScore = null;
     let aiSummary = null;
-
-    try {
-      const candidateUser = await db.select().from(users).where(eq(users.id, user.userId)).get();
-      if (candidateUser) {
-        const rankingResult = await rankCandidateForJob(
-          {
-            id: candidateUser.id,
-            firstName: candidateUser.firstName,
-            lastName: candidateUser.lastName,
-            email: candidateUser.email,
-            phone: candidateUser.phone,
-            skills: candidateUser.skills,
-            experienceYears: candidateUser.experienceYears,
-            location: candidateUser.location,
-            bio: candidateUser.bio,
-            verifiedStatus: candidateUser.verifiedStatus,
-            resumeUrl,
-          },
-          {
-            id: job.id,
-            jobTitle: job.jobTitle,
-            description: job.description,
-            requirements: job.requirements,
-            experienceLevel: job.experienceLevel,
-            locationCity: job.locationCity,
-            locationRemote: job.locationRemote,
-            employmentType: job.employmentType,
-          },
-          // @ts-ignore
-          env.GEMINI_API_KEY
-        );
-
-        aiScore = rankingResult.overallScore;
-        aiSummary = rankingResult.aiSummary;
-      }
-    } catch (err) {
-      console.error("Error generating Candidate Ranker AI score:", err);
-    }
-    // -------------------------------------------------------------------
 
     // Insert Application
     await db.insert(applications).values({
@@ -305,7 +313,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (Object.keys(userUpdates).length > 0) {
         await db.update(users).set(userUpdates).where(eq(users.id, user.userId));
       }
-    } catch(err) {
+    } catch (err) {
       console.error('Error updating user profile info on apply:', err);
     }
 
@@ -318,9 +326,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     try {
       const { notifications } = await import('../../../db/schema');
       const systemAdmins = await db.select({ id: users.id })
-                                   .from(users)
-                                   .where(sql`${users.userType} IN ('admin', 'superadmin', 'masteradmin')`).all();
-      
+        .from(users)
+        .where(sql`${users.userType} IN ('admin', 'superadmin', 'masteradmin')`).all();
+
       if (systemAdmins.length > 0) {
         const candidateUser = await db.select().from(users).where(eq(users.id, user.userId)).get();
         const candidateName = candidateUser ? `${candidateUser.firstName} ${candidateUser.lastName}` : 'A candidate';

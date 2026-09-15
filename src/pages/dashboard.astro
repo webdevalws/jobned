@@ -259,10 +259,21 @@ function salaryDisplay(min: any, max: any, currency: string | null) {
             <h2>Latest Open Positions</h2>
             <span class="section-sub">Recently posted roles matched with your profile</span>
           </div>
-          <a href="/jobs" class="view-all">View all positions ({recentJobs.length}+) ↗</a>
+          <div class="section-header-actions">
+            <div class="jobs-carousel-nav" id="jobsCarouselNav">
+              <button type="button" id="prevJobsBtn" class="carousel-nav-btn" disabled aria-label="Previous 4 jobs" title="Previous 4 jobs">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              </button>
+              <span id="jobsPageIndicator" class="carousel-page-indicator">1</span>
+              <button type="button" id="nextJobsBtn" class="carousel-nav-btn" aria-label="Next 4 jobs" title="Next 4 jobs">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </button>
+            </div>
+            <a href="/jobs" class="view-all">View all ↗</a>
+          </div>
         </div>
 
-        <div class="job-list">
+        <div class="job-list" id="dashboardJobsList">
           {recentJobs.length === 0 ? (
             <div class="empty-state-card">
               <div class="empty-icon">💼</div>
@@ -272,16 +283,18 @@ function salaryDisplay(min: any, max: any, currency: string | null) {
           ) : (
             recentJobs.map((job) => {
               const isApplied = appliedJobIds.has(job.id);
+              const compName = job.companyName || 'Featured Company';
+              const logoColor = `hsl(${Math.abs(compName.charCodeAt(0) * 7) % 360}, 60%, 52%)`;
               return (
-                <a href={isApplied ? `/applications` : `/jobs?apply=${job.id}`} class="job-card-modern">
+                <a href={isApplied ? `/applications` : `/jobs/${job.id}`} class="job-card-modern">
                   <div class="job-card-top">
                     <div class="job-title-group">
-                      <div class="job-avatar-pill">
-                        {(job.companyName || 'C').charAt(0).toUpperCase()}
+                      <div class="job-avatar-pill" style={`background: ${logoColor};`}>
+                        {compName.charAt(0).toUpperCase()}
                       </div>
-                      <div>
+                      <div class="job-title-group-text">
                         <h4 class="job-card-title">{job.jobTitle}</h4>
-                        <p class="job-card-company">{job.companyName || 'Featured Company'}</p>
+                        <p class="job-card-company">{compName}</p>
                       </div>
                     </div>
                     {isApplied ? (
@@ -414,7 +427,7 @@ function salaryDisplay(min: any, max: any, currency: string | null) {
   </div>
 </DashboardLayout>
 
-<style>
+<style is:global>
   .mt-2 { margin-top: 0.5rem; }
   .mt-3 { margin-top: 1rem; }
   .mt-4 { margin-top: 1.5rem; }
@@ -642,17 +655,67 @@ function salaryDisplay(min: any, max: any, currency: string | null) {
     font-weight: 600;
     text-decoration: none;
   }
-  .view-all:hover { text-decoration: underline; }
+  .section-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .jobs-carousel-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    padding: 0.2rem 0.35rem;
+    border-radius: 9999px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .carousel-nav-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--color-text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+  }
+  .carousel-nav-btn:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--color-primary);
+    transform: scale(1.08);
+  }
+  .carousel-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .carousel-page-indicator {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    padding: 0 0.35rem;
+    min-width: 16px;
+    text-align: center;
+    user-select: none;
+  }
 
   .job-list {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    transition: opacity 0.2s ease;
   }
 
   /* Modern Job Card */
   .job-card-modern {
-    padding: 1.35rem 1.5rem;
+    padding: 1.25rem 1.4rem;
     background: var(--color-surface);
     backdrop-filter: blur(12px);
     border: 1px solid var(--color-border);
@@ -661,7 +724,10 @@ function salaryDisplay(min: any, max: any, currency: string | null) {
     color: inherit;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.875rem;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     transition: all 0.2s ease;
   }
   .job-card-modern:hover {
@@ -673,46 +739,70 @@ function salaryDisplay(min: any, max: any, currency: string | null) {
   .job-card-top {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 0.875rem;
+    width: 100%;
+    min-width: 0;
   }
 
   .job-title-group {
     display: flex;
-    align-items: center;
-    gap: 1rem;
+    align-items: flex-start;
+    gap: 0.875rem;
+    flex: 1;
+    min-width: 0;
   }
 
   .job-avatar-pill {
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    max-width: 44px;
+    max-height: 44px;
+    aspect-ratio: 1 / 1;
+    flex-shrink: 0;
     border-radius: 12px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
     color: white;
     font-weight: 800;
-    font-size: 1.2rem;
+    font-size: 1.15rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+    margin-top: 2px;
+  }
+
+  .job-title-group-text {
+    flex: 1;
+    min-width: 0;
   }
 
   .job-card-title {
     margin: 0 0 0.2rem 0;
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 700;
     color: var(--color-text-main);
+    line-height: 1.35;
+    word-break: break-word;
   }
 
   .job-card-company {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .apply-cta-pill {
     font-size: 0.82rem;
     font-weight: 700;
     color: var(--color-primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
   .applied-pill {
@@ -726,11 +816,16 @@ function salaryDisplay(min: any, max: any, currency: string | null) {
     border: 1px solid rgba(16, 185, 129, 0.25);
     padding: 0.25rem 0.65rem;
     border-radius: 9999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
   .job-card-bottom {
     padding-top: 0.75rem;
     border-top: 1px solid var(--color-border);
+    width: 100%;
+    min-width: 0;
   }
 
   .job-tags-row {
@@ -940,3 +1035,185 @@ function salaryDisplay(min: any, max: any, currency: string | null) {
     .banner-content { flex-direction: column; align-items: flex-start; }
   }
 </style>
+
+<script define:vars={{ appliedArray: Array.from(appliedJobIds) }}>
+  const appliedSet = new Set(appliedArray || []);
+  let currentJobsPage = 1;
+  const jobsPerPage = 4;
+  let isLoadingJobs = false;
+  let hasMoreJobs = true;
+
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatSalary(min, max, currency) {
+    if ((min === null || min === undefined || min === '') && (max === null || max === undefined || max === '')) return null;
+    const c = (currency || 'USD').trim();
+    const numMin = Number(min);
+    const numMax = Number(max);
+
+    const validMin = !isNaN(numMin) && isFinite(numMin) && numMin > 0;
+    const validMax = !isNaN(numMax) && isFinite(numMax) && numMax > 0;
+    if (!validMin && !validMax) return null;
+
+    const fmtNum = (n) => {
+      if (n >= 1_000_000_000_000) {
+        const val = n / 1_000_000_000_000;
+        return val > 999 ? '999T+' : `${val.toFixed(1).replace(/\.0$/, '')}T`;
+      }
+      if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`;
+      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+      if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
+      return `${Math.round(n)}`;
+    };
+
+    const fMin = validMin ? fmtNum(numMin) : null;
+    const fMax = validMax ? fmtNum(numMax) : null;
+
+    if (fMin && fMax) {
+      if (fMin === fMax) return `${c} ${fMin}`;
+      return `${c} ${fMin}–${fMax}`;
+    }
+    if (fMin) return `${c} ${fMin}+`;
+    if (fMax) return `Up to ${c} ${fMax}`;
+    return null;
+  }
+
+  function renderDashboardJobs(jobs) {
+    const container = document.getElementById('dashboardJobsList');
+    if (!container) return;
+
+    if (!jobs || jobs.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state-card">
+          <div class="empty-icon">💼</div>
+          <p>No more jobs found on this page.</p>
+          <a href="/jobs" class="btn btn-primary mt-3">Browse All Jobs</a>
+        </div>
+      `;
+      return;
+    }
+
+    const html = jobs.map((job) => {
+      const isApplied = appliedSet.has(job.id);
+      const compName = job.companyName || 'Featured Company';
+      const firstLetter = compName.charAt(0).toUpperCase();
+      const logoColor = `hsl(${Math.abs(compName.charCodeAt(0) * 7) % 360}, 60%, 52%)`;
+      const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
+
+      return `
+        <a href="${isApplied ? '/applications' : `/jobs/${job.id}`}" class="job-card-modern">
+          <div class="job-card-top">
+            <div class="job-title-group">
+              <div class="job-avatar-pill" style="background: ${logoColor};">
+                ${firstLetter}
+              </div>
+              <div class="job-title-group-text">
+                <h4 class="job-card-title">${escHtml(job.jobTitle || 'Job Position')}</h4>
+                <p class="job-card-company">${escHtml(compName)}</p>
+              </div>
+            </div>
+            ${isApplied ? `
+              <span class="applied-pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Applied
+              </span>
+            ` : `
+              <span class="apply-cta-pill">Apply Now &rarr;</span>
+            `}
+          </div>
+
+          <div class="job-card-bottom">
+            <div class="job-tags-row">
+              ${job.locationRemote ? '<span class="tag tag-remote">🌐 Remote</span>' : `<span class="tag">📍 ${escHtml(job.locationCity || 'Onsite')}</span>`}
+              <span class="tag">⏱ ${escHtml(job.employmentType || 'Full-time')}</span>
+              ${salary ? `<span class="tag tag-salary">💰 ${escHtml(salary)}</span>` : ''}
+            </div>
+          </div>
+        </a>
+      `;
+    }).join('');
+
+    container.innerHTML = html;
+  }
+
+  async function loadDashboardJobs(page) {
+    if (isLoadingJobs || page < 1) return;
+    isLoadingJobs = true;
+
+    const container = document.getElementById('dashboardJobsList');
+    const prevBtn = document.getElementById('prevJobsBtn');
+    const nextBtn = document.getElementById('nextJobsBtn');
+    const indicator = document.getElementById('jobsPageIndicator');
+
+    if (container) {
+      container.style.opacity = '0.35';
+      container.style.pointerEvents = 'none';
+    }
+
+    try {
+      const res = await fetch(`/api/jobs/search?page=${page}&limit=${jobsPerPage}`);
+      if (res.ok) {
+        const data = await res.json();
+        const jobs = data.jobs || [];
+        hasMoreJobs = data.hasMore ?? (jobs.length === jobsPerPage);
+        currentJobsPage = page;
+
+        if (jobs.length > 0) {
+          renderDashboardJobs(jobs);
+        } else if (page > 1) {
+          hasMoreJobs = false;
+        }
+
+        if (indicator) indicator.textContent = `${currentJobsPage}`;
+        if (prevBtn) prevBtn.disabled = currentJobsPage <= 1;
+        if (nextBtn) nextBtn.disabled = !hasMoreJobs;
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard jobs:', err);
+    } finally {
+      isLoadingJobs = false;
+      if (container) {
+        container.style.opacity = '1';
+        container.style.pointerEvents = 'auto';
+      }
+    }
+  }
+
+  // Setup buttons
+  function initDashboardJobsPagination() {
+    const prevBtn = document.getElementById('prevJobsBtn');
+    const nextBtn = document.getElementById('nextJobsBtn');
+
+    if (prevBtn) {
+      prevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (currentJobsPage > 1) {
+          loadDashboardJobs(currentJobsPage - 1);
+        }
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (hasMoreJobs) {
+          loadDashboardJobs(currentJobsPage + 1);
+        }
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDashboardJobsPagination);
+  } else {
+    initDashboardJobsPagination();
+  }
+</script>

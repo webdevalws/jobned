@@ -8,7 +8,7 @@ async function generateMasterAdminSQL() {
   const sql = `
   INSERT OR REPLACE INTO users (id, email, password_hash, first_name, last_name, user_type, verified_status, is_active)
   VALUES 
-    ('${crypto.randomUUID()}', 'masteradmin@recruitnest.com', '${masteradminHash}', 'Master', 'Admin', 'masteradmin', 'verified', 1);
+    ('${crypto.randomUUID()}', 'masteradmin@jobned.com', '${masteradminHash}', 'Master', 'Admin', 'masteradmin', 'verified', 1);
   `;
   
   fs.writeFileSync('insert-masteradmin.sql', sql, 'utf8');

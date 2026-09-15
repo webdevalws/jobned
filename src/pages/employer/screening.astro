@@ -105,7 +105,7 @@ if (activeJob) {
       verifiedStatus: a.verifiedStatus,
     }));
   } else {
-    // Talent Pool Mode: Fetch all registered job seekers in RecruitNest
+    // Talent Pool Mode: Fetch all registered job seekers in JobNed
     const allSeekers = await db
       .select({
         id: users.id,
@@ -300,7 +300,7 @@ function formatDate(ts: any) {
         <div class="empty-state card">
           <div class="empty-icon">👥</div>
           <h3>{activeMode === 'applied' ? 'No Applicants For This Opening Yet' : 'No Candidates Found in Talent Pool'}</h3>
-          <p>{activeMode === 'applied' ? 'When candidates apply to this position, RecruitNest will instantly analyze and rank them here.' : 'Try adjusting your search criteria.'}</p>
+          <p>{activeMode === 'applied' ? 'When candidates apply to this position, JobNed will instantly analyze and rank them here.' : 'Try adjusting your search criteria.'}</p>
           {activeMode === 'applied' && (
             <a href={`/employer/screening?jobId=${activeJob.id}&mode=talent_pool`} class="btn btn-primary btn-sm mt-3">
               Explore Talent Pool for This Job ⚡
@@ -1213,8 +1213,15 @@ function formatDate(ts: any) {
       const data = await res.json();
 
       if (res.ok && data.verdict) {
-        // Format markdown-like bold text
-        const formatted = data.verdict
+        // Safe escape before formatting markdown-like bold text
+        const safeVerdict = String(data.verdict)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+
+        const formatted = safeVerdict
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\n/g, '<br>');
         bodyEl.innerHTML = `<div>${formatted}</div>

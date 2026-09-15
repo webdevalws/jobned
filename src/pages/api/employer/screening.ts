@@ -109,7 +109,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         verifiedStatus: a.verifiedStatus,
       }));
     } else {
-      // Talent Pool Mode: Fetch all registered job seekers in RecruitNest
+      // Talent Pool Mode: Fetch all registered job seekers in JobNed
       const allSeekers = await db
         .select({
           id: users.id,

@@ -293,11 +293,6 @@ const resumePdfUrl = candidate.defaultResumeUrl || (candidateApps[0]?.resumeUrl)
 
                   <div class="app-card-meta">
                     <span>📅 Applied {new Date(app.appliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    {app.aiScore !== null && (
-                      <span class="match-badge" style={`color: ${app.aiScore >= 80 ? '#10b981' : app.aiScore >= 50 ? '#f59e0b' : '#ef4444'};`}>
-                        ✨ {app.aiScore}% AI Fit
-                      </span>
-                    )}
                   </div>
 
                   <div class="app-card-actions mt-3">

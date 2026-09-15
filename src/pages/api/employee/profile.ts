@@ -82,18 +82,35 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       }
 
       if (bucket) {
-        const resumeFilename = `default_resume_${user.userId}.pdf`;
-        const buffer = await defaultResumeFile.arrayBuffer();
-        await bucket.put(resumeFilename, buffer, {
-          httpMetadata: { contentType: 'application/pdf' },
-          customMetadata: { uploadedBy: user.userId, uploadedAt: new Date().toISOString() },
-        });
-        defaultResumeUrl = `/api/resumes/${resumeFilename}`;
+        try {
+          const resumeFilename = `default_resume_${user.userId}.pdf`;
+          const buffer = await defaultResumeFile.arrayBuffer();
+          await bucket.put(resumeFilename, buffer, {
+            httpMetadata: { contentType: 'application/pdf' },
+            customMetadata: { uploadedBy: user.userId, uploadedAt: new Date().toISOString() },
+          });
+          defaultResumeUrl = `/api/resumes/${resumeFilename}`;
+        } catch (r2Err) {
+          console.warn('R2 put failed for default resume, using data URL fallback:', r2Err);
+          const buffer = await defaultResumeFile.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          defaultResumeUrl = `data:application/pdf;base64,${base64}`;
+        }
       } else {
-        console.warn('R2 BUCKET binding not found in env. Resume not saved.');
+        console.warn('R2 BUCKET binding not found in env. Using data URL fallback for default resume.');
+        const buffer = await defaultResumeFile.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        defaultResumeUrl = `data:application/pdf;base64,${base64}`;
       }
     } else if (clearDefaultResume) {
       defaultResumeUrl = '';
+      if (bucket) {
+        try {
+          await bucket.delete(`default_resume_${user.userId}.pdf`);
+        } catch (delErr) {
+          console.warn('Could not delete default resume from R2:', delErr);
+        }
+      }
     }
 
     // --- R2 Photo Upload ---
@@ -116,18 +133,28 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       }
 
       if (bucket) {
-        const ext = photoFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const key = `avatars/${user.userId}-${Date.now()}.${ext}`;
-        const buffer = await photoFile.arrayBuffer();
+        try {
+          const ext = photoFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+          const key = `avatars/${user.userId}-${Date.now()}.${ext}`;
+          const buffer = await photoFile.arrayBuffer();
 
-        await bucket.put(key, buffer, {
-          httpMetadata: { contentType: photoFile.type },
-          customMetadata: { uploadedBy: user.userId, uploadedAt: new Date().toISOString() },
-        });
+          await bucket.put(key, buffer, {
+            httpMetadata: { contentType: photoFile.type },
+            customMetadata: { uploadedBy: user.userId, uploadedAt: new Date().toISOString() },
+          });
 
-        avatarUrl = `/api/uploads/${key}`;
+          avatarUrl = `/api/uploads/${key}`;
+        } catch (r2Err) {
+          console.warn('R2 put failed, falling back to data URL:', r2Err);
+          const buffer = await photoFile.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          avatarUrl = `data:${photoFile.type || 'image/png'};base64,${base64}`;
+        }
       } else {
-        console.warn('R2 BUCKET binding not found in env. Photo not saved.');
+        console.warn('R2 BUCKET binding not found in env. Using data URL fallback.');
+        const buffer = await photoFile.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        avatarUrl = `data:${photoFile.type || 'image/png'};base64,${base64}`;
       }
     }
 

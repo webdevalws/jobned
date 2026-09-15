@@ -87,7 +87,7 @@ const hasCandidateProfile = jobs.some(j => j.hasProfile);
       <div class="banner-icon">🎯</div>
       <div class="banner-text">
         <h4 class="banner-title">Personalized Compatibility Scores</h4>
-        <p class="banner-desc">Complete your skills and experience in your profile settings so RecruitNest can calculate your exact compatibility match percentage for each opening.</p>
+        <p class="banner-desc">Complete your skills and experience in your profile settings so JobNed can calculate your exact compatibility match percentage for each opening.</p>
       </div>
       <a href="/settings" class="btn btn-sm btn-primary banner-action">Complete Profile ⚡</a>
     </div>
@@ -138,7 +138,7 @@ const hasCandidateProfile = jobs.some(j => j.hasProfile);
                 {job.experienceLevel && <span class="tag">🎯 {job.experienceLevel}</span>}
                 {salary && <span class="tag tag-salary">💰 {salary}</span>}
               </div>
-              <p class="job-desc">{(job.description || '').slice(0, 150)}{(job.description || '').length > 150 ? '…' : ''}</p>
+              <p class="job-desc">{(() => { const clean = (job.description || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim(); return clean.length > 150 ? clean.slice(0, 150) + '…' : clean; })()}</p>
             </div>
             <div class="job-actions">
               {appliedJobIds.has(job.id) ? (
@@ -431,10 +431,10 @@ const hasCandidateProfile = jobs.some(j => j.hasProfile);
 </style>
 
 <script>
-  const STORAGE_KEY = 'recruitnest_saved_jobs';
+  const STORAGE_KEY = 'jobned_saved_jobs';
 
   function getSaved() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem('recruitnest_saved_jobs') || '[]'); } catch { return []; }
   }
 
   function markSavedButtons(savedList: any[]) {

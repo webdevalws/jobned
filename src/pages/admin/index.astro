@@ -447,18 +447,97 @@ const recentJobs = await db.select({
       background: var(--color-surface) !important;
       backdrop-filter: blur(16px) !important;
       border: 1px solid var(--color-border) !important;
-      border-radius: var(--border-radius-md) !important;
+      border-radius: var(--border-radius-lg, 14px) !important;
       padding: 1.15rem 1rem !important;
       margin-bottom: 1rem !important;
       display: flex !important;
-      flex-direction: column !important;
-      gap: 0.65rem !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      gap: 0.55rem !important;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
     }
 
     .data-table td {
       padding: 0 !important;
       border: none !important;
+    }
+
+    .col-title {
+      flex: 1 1 calc(100% - 110px) !important;
+      min-width: 0 !important;
+    }
+
+    .job-title-text {
+      font-size: 1.02rem !important;
+      font-weight: 700 !important;
+      color: var(--color-text-main) !important;
+      word-break: break-word !important;
+      line-height: 1.35 !important;
+      display: block !important;
+    }
+
+    .col-status {
+      flex: 0 0 auto !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: flex-end !important;
+    }
+
+    .status-pill {
+      height: 26px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 0.2rem 0.65rem !important;
+      font-size: 0.72rem !important;
+      box-sizing: border-box !important;
+    }
+
+    .col-employer {
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+    }
+
+    .company-text {
+      font-size: 0.86rem !important;
+      color: var(--color-text-muted) !important;
+      word-break: break-word !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 0.35rem !important;
+    }
+
+    .col-date {
+      flex: 0 0 auto !important;
+      display: flex !important;
+      align-items: center !important;
+    }
+
+    .date-text {
+      font-size: 0.8rem !important;
+      color: var(--color-text-muted) !important;
+    }
+
+    .col-actions {
+      width: 100% !important;
+      display: flex !important;
+      justify-content: flex-end !important;
+      align-items: center !important;
+      padding-top: 0.65rem !important;
+      border-top: 1px solid var(--color-border) !important;
+      margin-top: 0.25rem !important;
+    }
+
+    .btn-action-icon {
+      width: 38px !important;
+      height: 38px !important;
+      border-radius: 10px !important;
+    }
+
+    .admin-table-card {
+      margin-bottom: 2.5rem !important;
     }
   }
 </style>

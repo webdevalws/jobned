@@ -50,18 +50,28 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       }
 
       if (bucket) {
-        const ext = photoFile.name.split('.').pop() || 'jpg';
-        const key = `avatar_${user.userId}_${Date.now()}.${ext}`;
-        const buffer = await photoFile.arrayBuffer();
+        try {
+          const ext = photoFile.name.split('.').pop() || 'jpg';
+          const key = `avatar_${user.userId}_${Date.now()}.${ext}`;
+          const buffer = await photoFile.arrayBuffer();
 
-        await bucket.put(key, buffer, {
-          httpMetadata: { contentType: photoFile.type },
-          customMetadata: { uploadedBy: user.userId, uploadedAt: new Date().toISOString() },
-        });
+          await bucket.put(key, buffer, {
+            httpMetadata: { contentType: photoFile.type },
+            customMetadata: { uploadedBy: user.userId, uploadedAt: new Date().toISOString() },
+          });
 
-        avatarUrl = `/api/uploads/${key}`;
+          avatarUrl = `/api/uploads/${key}`;
+        } catch (err) {
+          console.warn('R2 put failed, falling back to data URL:', err);
+          const buffer = await photoFile.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          avatarUrl = `data:${photoFile.type || 'image/png'};base64,${base64}`;
+        }
       } else {
-        console.warn('R2 BUCKET binding not found. Avatar not saved.');
+        console.warn('R2 BUCKET binding not found. Using data URL fallback.');
+        const buffer = await photoFile.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        avatarUrl = `data:${photoFile.type || 'image/png'};base64,${base64}`;
       }
     }
 

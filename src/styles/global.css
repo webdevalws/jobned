@@ -85,6 +85,22 @@ img, video, canvas, svg {
   height: auto;
 }
 
+/* Brand Logo Text Styling */
+.logo-text, .mobile-logo {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-text-main);
+  display: inline-flex;
+  align-items: center;
+}
+
+.logo-text .highlight, .mobile-logo .highlight {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline;
+}
+
 /* Ensure mobile form inputs don't trigger iOS auto-zoom */
 @media (max-width: 768px) {
   input, select, textarea {
@@ -375,6 +391,7 @@ dialog[open]::backdrop {
   font-weight: 600;
   letter-spacing: 0.025em;
   text-transform: uppercase;
+  white-space: nowrap !important;
 }
 .bg-success-light { background: rgba(167, 139, 250, 0.15); }
 .text-success { color: var(--color-success); }
@@ -999,10 +1016,20 @@ input[type="file"]::-webkit-file-upload-button:active,
   box-sizing: border-box;
 }
 
-.custom-select-trigger {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.82rem;
-  gap: 0.35rem;
+.custom-select-container.open {
+  position: relative !important;
+  z-index: 9999 !important;
+}
+
+.form-card:has(.custom-select-container.open),
+.card:has(.custom-select-container.open),
+.card-sub:has(.custom-select-container.open),
+.form-group:has(.custom-select-container.open),
+.form-grid-3:has(.custom-select-container.open),
+.form-grid-2:has(.custom-select-container.open),
+.form-section:has(.custom-select-container.open) {
+  position: relative !important;
+  z-index: 100 !important;
 }
 
 .custom-select-menu {
@@ -1012,17 +1039,17 @@ input[type="file"]::-webkit-file-upload-button:active,
   right: auto;
   min-width: 100%;
   width: max-content;
-  max-width: 250px;
+  max-width: 280px;
   background: var(--color-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
   padding: 0.25rem;
-  z-index: 1000;
+  z-index: 99999 !important;
   display: none;
-  max-height: 220px;
+  max-height: 240px;
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -1031,7 +1058,7 @@ input[type="file"]::-webkit-file-upload-button:active,
 [data-theme="light"] .custom-select-menu {
   background: #FFFFFF;
   border-color: var(--color-border);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.15);
 }
 
 .custom-select-container.open .custom-select-menu {
@@ -1075,6 +1102,74 @@ input[type="file"]::-webkit-file-upload-button:active,
 .mt-3 { margin-top: 1rem !important; }
 .mt-4 { margin-top: 1.75rem !important; }
 .mt-5 { margin-top: 2.5rem !important; }
+
+/* ==========================================================================
+   MOBILE & TABLET RESPONSIVENESS ENHANCEMENTS (320px - 768px)
+   ========================================================================== */
+.table-responsive,
+.data-table-wrap,
+.table-wrap,
+.table-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1rem;
+}
+
+.table-responsive table,
+.data-table-wrap table,
+.table-wrap table,
+.table-container table {
+  min-width: 600px;
+}
+
+@media (max-width: 640px) {
+  .filter-bar,
+  .filter-row,
+  .action-bar,
+  .search-filter-grid,
+  .toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+    width: 100% !important;
+  }
+
+  .filter-bar > *,
+  .filter-row > *,
+  .action-bar > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .btn {
+    min-height: 42px;
+  }
+
+  .card,
+  .form-card,
+  .summary-card {
+    padding: 1rem !important;
+    border-radius: var(--border-radius-md) !important;
+  }
+}
+
+@media (max-width: 380px) {
+  body {
+    font-size: 0.85rem !important;
+  }
+
+  .btn {
+    padding: 0.45rem 0.75rem !important;
+    font-size: 0.8rem !important;
+  }
+
+  h1 { font-size: 1.35rem !important; }
+  h2 { font-size: 1.15rem !important; }
+  h3 { font-size: 1rem !important; }
+}
+
 
 
 

@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import CookieBanner from "../components/CookieBanner.astro";
 import Footer from "../components/Footer.astro";
 import MobileBottomNav from "../components/MobileBottomNav.astro";
 import SEO from "../components/SEO.astro";
@@ -192,6 +193,7 @@ const userType = payload?.userType;
 				<MobileBottomNav userType={userType} />
 			)
 		}
+		<CookieBanner />
 
 		<script is:inline>
 			document.addEventListener("DOMContentLoaded", () => {

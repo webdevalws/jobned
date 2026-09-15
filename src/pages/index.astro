@@ -19,9 +19,9 @@ if (payload) {
 ---
 
 <Layout
-  title="RecruitNest - AI-Powered Job & Talent Matching Platform"
+  title="JobNed - AI-Powered Job & Talent Matching Platform"
   description="Discover top tech jobs or hire world-class candidates with AI candidate screening, real-time application tracking, and automated interview scheduling."
-  keywords="tech jobs, AI hiring, candidate screening, developer jobs, recruitment software, remote jobs, SaaS hiring platform"
+  keywords="tech jobs, AI hiring, candidate screening, developer jobs, recruitment software, remote jobs, SaaS careers"
   schemaType="SoftwareApplication"
 >
   <!-- Navigation Header -->
@@ -47,7 +47,7 @@ if (payload) {
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
             <line x1="12" y1="22.08" x2="12" y2="12"></line>
           </svg>
-          <span>RecruitNest</span>
+          <span class="logo-text">Job<span class="highlight">Ned</span></span>
         </a>
       </div>
       <nav class="nav-links">
@@ -129,7 +129,7 @@ if (payload) {
             next step in your career.
           </p>
 
-          <div class="search-box">
+          <form action="/jobs" method="GET" class="search-box">
             <div class="search-input-group">
               <svg
                 class="search-icon"
@@ -147,6 +147,7 @@ if (payload) {
               >
               <input
                 type="text"
+                name="q"
                 placeholder="Job title, keywords, or company"
               />
             </div>
@@ -163,19 +164,19 @@ if (payload) {
                 ><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
                 ></path><circle cx="12" cy="10" r="3"></circle></svg
               >
-              <input type="text" placeholder="Location" />
+              <input type="text" name="location" placeholder="Location" />
             </div>
-            <a href="/jobs" class="btn btn-primary btn-search btn-glow"
-              >Search Jobs &rarr;</a
+            <button type="submit" class="btn btn-primary btn-search btn-glow"
+              >Search Jobs &rarr;</button
             >
-          </div>
+          </form>
 
           <div class="popular-searches">
             <span class="popular-label">Popular Searches:</span>
-            <a href="#" class="search-tag">UI/UX Designer</a>
-            <a href="#" class="search-tag">React Developer</a>
-            <a href="#" class="search-tag">Product Manager</a>
-            <a href="#" class="search-tag">Data Scientist</a>
+            <a href="/jobs?q=UI%2FUX+Designer" class="search-tag">UI/UX Designer</a>
+            <a href="/jobs?q=React+Developer" class="search-tag">React Developer</a>
+            <a href="/jobs?q=Product+Manager" class="search-tag">Product Manager</a>
+            <a href="/jobs?q=Data+Scientist" class="search-tag">Data Scientist</a>
           </div>
         </div>
 
@@ -212,7 +213,7 @@ if (payload) {
                       stroke="url(#ringGradient)"
                       stroke-width="8"
                       stroke-dasharray="264"
-                      stroke-dashoffset="60"
+                      stroke-dashoffset="20"
                       stroke-linecap="round"
                       class="ring-progress"></circle>
                     <defs>
@@ -395,7 +396,7 @@ if (payload) {
     <!-- How It Works -->
     <section class="how-it-works">
       <div class="section-header reveal-on-scroll">
-        <h2>How RecruitNest Works</h2>
+        <h2>How JobNed Works</h2>
         <p>Three simple steps to your next big career move</p>
       </div>
       <div class="steps-grid">
@@ -617,7 +618,7 @@ if (payload) {
             ✨ Universal AI Career Simulator
           </div>
           <h2>
-            See How RecruitNest Matches You To <br class="desktop-br" /><span
+            See How JobNed Matches You To <br class="desktop-br" /><span
               class="gradient-text">Top Careers Across Every Industry</span
             >
           </h2>
@@ -978,7 +979,7 @@ if (payload) {
           <div class="stars">⭐⭐⭐⭐⭐</div>
           <p class="quote">
             "I applied to dozens of places with no luck. Within a week on
-            RecruitNest, I had three interviews and landed a Senior Developer
+            JobNed, I had three interviews and landed a Senior Developer
             role!"
           </p>
           <div class="author">
@@ -1018,7 +1019,7 @@ if (payload) {
         <div class="testimonial-card reveal-on-scroll delay-300">
           <div class="stars">⭐⭐⭐⭐⭐</div>
           <p class="quote">
-            "As an employer, the quality of candidates we get from RecruitNest
+            "As an employer, the quality of candidates we get from JobNed
             is unmatched. We filled our open positions in half the time."
           </p>
           <div class="author">
@@ -1043,7 +1044,7 @@ if (payload) {
         <h2>Ready to take the next step?</h2>
         <p>
           Join thousands of companies and professionals already using
-          RecruitNest.
+          JobNed.
         </p>
         <div class="cta-actions">
           <a href="/pricing" class="btn btn-primary btn-lg btn-glow"
@@ -1471,7 +1472,7 @@ if (payload) {
       stroke-dashoffset: 264;
     }
     to {
-      stroke-dashoffset: 60;
+      stroke-dashoffset: 20;
     }
   }
 
@@ -2890,7 +2891,7 @@ if (payload) {
         s2: { name: "Vector Databases & RAG", val: "95%", width: "95%" },
         s3: { name: "Model Tuning & PyTorch", val: "91%", width: "91%" },
         insight:
-          "AI Engineers are in the top 1% highest-paid talent on RecruitNest. Verified AI candidates average 4 interview invites within 72 hours.",
+          "AI Engineers are in the top 1% highest-paid talent on JobNed. Verified AI candidates average 4 interview invites within 72 hours.",
         ats: "99/100 PASSED",
       },
       design: {
@@ -2903,7 +2904,7 @@ if (payload) {
         s2: { name: "User Research & Usability", val: "92%", width: "92%" },
         s3: { name: "Interactive Prototyping", val: "89%", width: "89%" },
         insight:
-          "Designers with structured case studies and measurable impact receive 4.2x more employer interview invitations on RecruitNest.",
+          "Designers with structured case studies and measurable impact receive 4.2x more employer interview invitations on JobNed.",
         ats: "96/100 PASSED",
       },
       marketing: {

@@ -36,7 +36,7 @@ if (sortParam === "date_asc") {
   orderByClause = desc(jobPostings.jobTitle);
 }
 
-// SuperAdmin strictly receives ONLY RecruitNest Platform applications (no Alightway applications)
+// SuperAdmin strictly receives ONLY JobNed Platform applications (no Alightway applications)
 const baseConditions = [
   ne(users.userType, "external_applicant"), 
   notLike(jobPostings.id, "external_%")
@@ -93,7 +93,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
 ---
 
 <DashboardLayout
-  title="RecruitNest Platform Applications | Superadmin"
+  title="JobNed Platform Applications | Superadmin"
   userType="superadmin"
   activePath="/superadmin/applications"
 >
@@ -111,9 +111,9 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
             </svg>
           </div>
           <div>
-            <h1>RecruitNest Platform Applications</h1>
+            <h1>JobNed Platform Applications</h1>
             <p class="text-muted" style="margin: 0; font-size: 0.875rem;">
-              Manage incoming candidate applications submitted across RecruitNest platform jobs.
+              Manage incoming candidate applications submitted across JobNed platform jobs.
             </p>
           </div>
         </div>
@@ -131,7 +131,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
     <div class="source-tabs-row mb-3">
       <div class="active-tab tab-pill">
         <span class="tab-icon">🏢</span>
-        <span>RecruitNest Platform Applications</span>
+        <span>JobNed Platform Applications</span>
         <span class="tab-count-badge">{totalScopePositionsCount}</span>
       </div>
     </div>
@@ -209,7 +209,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                     <p>
                       {positionParam !== "all" 
                         ? `No applications found for position "${positionParam}".` 
-                        : 'No job applications have been submitted on RecruitNest platform yet.'}
+                        : 'No job applications have been submitted on JobNed platform yet.'}
                     </p>
                   </div>
                 </td>
@@ -219,7 +219,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                 <tr class="app-row">
                   <td>
                     <span class="source-tag tag-platform">
-                      🏢 RecruitNest Platform
+                      🏢 JobNed Platform
                     </span>
                   </td>
                   <td>
@@ -289,7 +289,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                         <div class="dialog-body">
                           <div class="dialog-source-bar mb-3">
                             <span class="source-tag tag-platform">
-                              🏢 Submitted via RecruitNest Platform
+                              🏢 Submitted via JobNed Platform
                             </span>
                           </div>
 

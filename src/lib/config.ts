@@ -1,5 +1,5 @@
 /**
- * RecruitNest Configuration Utilities for Base URL and Storage URL
+ * JobNed Configuration Utilities for Base URL and Storage URL
  * Centralized environment-aware URL construction for app and asset storage.
  */
 

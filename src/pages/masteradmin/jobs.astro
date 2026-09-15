@@ -1,0 +1,1169 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import { getDb } from '../../lib/db';
+import { jobPostings, users } from '../../db/schema';
+import { eq, desc, isNull, eq as eqDrizzle, or, and, notLike } from 'drizzle-orm';
+
+const payload = Astro.locals.user;
+if (!payload || (payload.userType !== 'masteradmin' && payload.userType !== 'superadmin' && payload.userType !== 'admin')) {
+  return Astro.redirect('/login');
+}
+
+const db = getDb();
+
+// Fetch all live & active jobs (where isDeleted is not true and not an external placeholder job)
+const allActiveJobs = await db.select({
+  id: jobPostings.id,
+  jobTitle: jobPostings.jobTitle,
+  description: jobPostings.description,
+  requirements: jobPostings.requirements,
+  salaryMin: jobPostings.salaryMin,
+  salaryMax: jobPostings.salaryMax,
+  salaryCurrency: jobPostings.salaryCurrency,
+  locationCity: jobPostings.locationCity,
+  locationRemote: jobPostings.locationRemote,
+  employmentType: jobPostings.employmentType,
+  experienceLevel: jobPostings.experienceLevel,
+  externalApplyUrl: jobPostings.externalApplyUrl,
+  status: jobPostings.status,
+  applicationsCount: jobPostings.applicationsCount,
+  createdAt: jobPostings.createdAt,
+  publishedAt: jobPostings.publishedAt,
+  employerId: jobPostings.employerId,
+  employerFirstName: users.firstName,
+  employerLastName: users.lastName,
+  employerEmail: users.email,
+  employerCompany: users.companyName,
+}).from(jobPostings)
+  .leftJoin(users, eq(jobPostings.employerId, users.id))
+  .where(and(
+    or(isNull(jobPostings.isDeleted), eqDrizzle(jobPostings.isDeleted, false)),
+    notLike(jobPostings.id, 'external_%')
+  ))
+  .orderBy(desc(jobPostings.createdAt));
+
+// Safely serialize jobs for client-side consumption without breaking HTML or throwing Date serialization errors
+const sanitizedJobs = (allActiveJobs || []).map(j => ({
+  ...j,
+  createdAt: j.createdAt ? (typeof j.createdAt === 'object' ? j.createdAt.toString() : String(j.createdAt)) : null,
+  publishedAt: j.publishedAt ? (typeof j.publishedAt === 'object' ? j.publishedAt.toString() : String(j.publishedAt)) : null,
+}));
+
+const safeJobsJson = JSON.stringify(sanitizedJobs).replace(/</g, '\\u003c');
+const userType = payload.userType === 'superadmin' ? 'superadmin' : 'masteradmin';
+---
+
+<DashboardLayout title="Live Active Jobs Directory - MasterAdmin" userType={userType} activePath="/masteradmin/jobs">
+  <div class="dashboard-header mb-4">
+    <div class="header-titles">
+      <span class="badge-tag">Platform Moderation</span>
+      <h1>Live Active Jobs Directory 💼</h1>
+      <p class="subtitle">Global oversight of all platform vacancies, scraped live postings, and employer listings. View details or purge invalid jobs.</p>
+    </div>
+    <div class="stats-counter-pill">
+      <strong id="jobCountDisplay">{allActiveJobs.length}</strong> Live Active Jobs
+    </div>
+  </div>
+
+  <!-- Search & Filter Controls -->
+  <div class="search-bar-container mb-3">
+    <div class="search-input-wrapper">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="jobSearchInput" class="search-input" placeholder="Search jobs by title, company, location, or source (crawled/direct)..." />
+    </div>
+  </div>
+
+  <!-- Bulk Actions Toolbar (Hidden until items selected) -->
+  <div id="bulkActionsToolbar" class="bulk-actions-toolbar mb-4" style="display: none;">
+    <div class="bulk-actions-info">
+      <span class="bulk-count-badge"><span id="selectedJobsCount">0</span> Selected</span>
+      <span class="bulk-info-text">Choose an action to apply to selected job postings</span>
+    </div>
+    <div class="bulk-actions-buttons">
+      <button type="button" class="btn-bulk-deselect" onclick="deselectAllJobs()">
+        ✕ Clear Selection
+      </button>
+      <button type="button" id="btnDeleteSelected" class="btn-bulk-delete" onclick="deleteSelectedJobs()">
+        🗑️ Delete Selected (<span id="deleteSelectedBtnCount">0</span>)
+      </button>
+    </div>
+  </div>
+
+  <!-- Jobs Table Card -->
+  <div class="table-card">
+    <div class="table-responsive">
+      <table class="data-table" id="jobsTable">
+        <thead>
+          <tr>
+            <th style="width: 44px; text-align: center;">
+              <input type="checkbox" id="selectAllCheckbox" class="job-checkbox-input" title="Select All Jobs" />
+            </th>
+            <th>Job Role & Info</th>
+            <th>Company & Recruiter</th>
+            <th>Type & Location</th>
+            <th>Source</th>
+            <th>Date Posted</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {allActiveJobs.length === 0 ? (
+            <tr>
+              <td colspan="7" class="empty-cell">
+                <div class="empty-state">
+                  <div class="empty-icon">📢</div>
+                  <h3>No Active Jobs Found</h3>
+                  <p>There are currently no active job postings available on the platform.</p>
+                </div>
+              </td>
+            </tr>
+          ) : (
+            allActiveJobs.map((job) => {
+              const isCrawled = job.id.startsWith('crawled_') || job.id.startsWith('external_');
+              const displayCompany = job.employerCompany || (job.employerFirstName ? `${job.employerFirstName} ${job.employerLastName || ''}`.trim() : (isCrawled ? 'Crawled Employer' : 'Company'));
+              const formattedDate = job.publishedAt 
+                ? new Date(job.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                : job.createdAt 
+                ? new Date(job.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) 
+                : '-';
+
+              return (
+                <tr class="job-row" data-job-id={job.id} data-search-text={`${job.jobTitle} ${displayCompany} ${job.locationCity || ''} ${isCrawled ? 'crawled external' : 'employer direct'}`.toLowerCase()}>
+                  <td style="text-align: center;" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="job-checkbox-input job-row-checkbox" value={job.id} data-job-title={job.jobTitle} />
+                  </td>
+                  <td class="col-info">
+                    <button type="button" class="job-title-btn text-left" onclick={`openJobDetailsModal(${JSON.stringify(job.id)})`}>
+                      <strong class="job-title-txt">{job.jobTitle}</strong>
+                    </button>
+                    <div class="job-sub-meta">
+                      <span class="exp-badge">🎯 {job.experienceLevel || 'Mid-Level'}</span>
+                      {job.applicationsCount ? <span>• 📥 {job.applicationsCount} applicants</span> : null}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="company-meta">
+                      <strong class="company-name">{displayCompany}</strong>
+                      {job.employerEmail ? <span class="recruiter-sub">✉️ {job.employerEmail}</span> : <span class="recruiter-sub">🌐 Scraped Entry</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="type-loc-meta">
+                      <span class="location-badge">📍 {job.locationCity || (job.locationRemote ? 'Remote' : 'Flexible')}</span>
+                      <span class="type-pill">{job.employmentType || 'Full-time'}</span>
+                    </div>
+                  </td>
+                  <td>
+                    {isCrawled ? (
+                      <span class="source-badge badge-crawled">🤖 Crawled / External</span>
+                    ) : (
+                      <span class="source-badge badge-direct">🏢 Employer Posted</span>
+                    )}
+                  </td>
+                  <td>
+                    <span class="date-text">{formattedDate}</span>
+                  </td>
+                  <td>
+                    <div class="action-btn-group">
+                      <button 
+                        type="button" 
+                        class="btn-action btn-view"
+                        onclick={`openJobDetailsModal(${JSON.stringify(job.id)})`}
+                        title="View Full Job Details"
+                      >
+                        👁️ View
+                      </button>
+                      <button 
+                        type="button" 
+                        class="btn-action btn-delete"
+                        onclick={`deleteJobFromMasterAdmin(${JSON.stringify(job.id)}, ${JSON.stringify(job.jobTitle)})`}
+                        title="Delete Job Posting"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Job Details Modal -->
+  <div id="jobDetailsModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <div>
+          <span id="modalSourceBadge" class="source-badge badge-crawled mb-1">Source</span>
+          <h2 id="modalJobTitle" class="modal-title">Job Title</h2>
+          <p id="modalCompanyLocation" class="subtext">Company • Location</p>
+        </div>
+        <button type="button" class="modal-close" onclick="closeJobDetailsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="details-grid mb-3">
+          <div class="detail-box">
+            <span class="box-label">Employment Type</span>
+            <strong id="modalEmpType" class="box-value">-</strong>
+          </div>
+          <div class="detail-box">
+            <span class="box-label">Experience Level</span>
+            <strong id="modalExpLevel" class="box-value">-</strong>
+          </div>
+          <div class="detail-box">
+            <span class="box-label">Salary Range</span>
+            <strong id="modalSalary" class="box-value">-</strong>
+          </div>
+          <div class="detail-box">
+            <span class="box-label">Applications</span>
+            <strong id="modalApps" class="box-value">0</strong>
+          </div>
+        </div>
+
+        <div id="modalExternalUrlWrap" class="external-link-banner mb-3" style="display: none;">
+          <span>🌐 External Job URL:</span>
+          <a id="modalExternalUrl" href="#" target="_blank" rel="noopener noreferrer" class="external-link">View Original Posting ↗</a>
+        </div>
+
+        <div class="description-section">
+          <h3>Job Description</h3>
+          <div id="modalDescription" class="job-description-content">
+            Loading...
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modal btn-cancel" onclick="closeJobDetailsModal()">Close</button>
+        <button type="button" id="modalDeleteBtn" class="btn-modal btn-confirm-delete">🗑️ Delete Job Posting</button>
+      </div>
+    </div>
+  </div>
+</DashboardLayout>
+
+<!-- Embed Safe JSON Data for Client Script -->
+<script id="jobs-data" type="application/json" set:html={safeJobsJson}></script>
+
+<!-- Client-side Scripts -->
+<script is:inline>
+  let jobs = [];
+  try {
+    const el = document.getElementById('jobs-data');
+    jobs = el ? JSON.parse(el.textContent || '[]') : [];
+  } catch (e) {
+    console.error('Error parsing jobs data', e);
+  }
+
+  // Live Instant Search Filter
+  const searchInput = document.getElementById('jobSearchInput');
+  const countDisplay = document.getElementById('jobCountDisplay');
+  const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+  const bulkToolbar = document.getElementById('bulkActionsToolbar');
+  const selectedJobsCountEl = document.getElementById('selectedJobsCount');
+  const deleteSelectedBtnCountEl = document.getElementById('deleteSelectedBtnCount');
+
+  function getVisibleCheckboxes() {
+    const visibleRows = Array.from(document.querySelectorAll('.job-row')).filter(r => r.style.display !== 'none');
+    return visibleRows.map(r => r.querySelector('.job-row-checkbox')).filter(Boolean);
+  }
+
+  function updateSelectionUI() {
+    const visibleCheckboxes = getVisibleCheckboxes();
+    const checkedBoxes = Array.from(document.querySelectorAll('.job-row-checkbox:checked'));
+    const count = checkedBoxes.length;
+
+    if (selectedJobsCountEl) selectedJobsCountEl.textContent = count;
+    if (deleteSelectedBtnCountEl) deleteSelectedBtnCountEl.textContent = count;
+
+    if (bulkToolbar) {
+      bulkToolbar.style.display = count > 0 ? 'flex' : 'none';
+    }
+
+    if (selectAllCheckbox) {
+      if (visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked)) {
+        selectAllCheckbox.checked = true;
+        selectAllCheckbox.indeterminate = false;
+      } else if (count > 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = true;
+      } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+      }
+    }
+
+    // Toggle row highlight class
+    document.querySelectorAll('.job-row').forEach(row => {
+      const cb = row.querySelector('.job-row-checkbox');
+      if (cb && cb.checked) {
+        row.classList.add('selected-row');
+      } else {
+        row.classList.remove('selected-row');
+      }
+    });
+  }
+
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      const visibleCheckboxes = getVisibleCheckboxes();
+      visibleCheckboxes.forEach(cb => {
+        cb.checked = isChecked;
+      });
+      updateSelectionUI();
+    });
+  }
+
+  // Handle individual row checkbox toggle
+  document.getElementById('jobsTable')?.addEventListener('change', (e) => {
+    if (e.target && e.target.classList.contains('job-row-checkbox')) {
+      updateSelectionUI();
+    }
+  });
+
+  window.deselectAllJobs = function() {
+    document.querySelectorAll('.job-row-checkbox').forEach(cb => cb.checked = false);
+    if (selectAllCheckbox) {
+      selectAllCheckbox.checked = false;
+      selectAllCheckbox.indeterminate = false;
+    }
+    updateSelectionUI();
+  };
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const rows = document.querySelectorAll('.job-row');
+      let visible = 0;
+
+      rows.forEach(row => {
+        const searchText = row.getAttribute('data-search-text') || '';
+        if (!q || searchText.includes(q)) {
+          row.style.display = '';
+          visible++;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      if (countDisplay) countDisplay.textContent = visible;
+      updateSelectionUI();
+    });
+  }
+
+  // Bulk Delete Action
+  window.deleteSelectedJobs = async function() {
+    const checkedBoxes = Array.from(document.querySelectorAll('.job-row-checkbox:checked'));
+    if (checkedBoxes.length === 0) return;
+
+    const selectedIds = checkedBoxes.map(cb => cb.value);
+    const count = selectedIds.length;
+
+    const confirmMsg = count === 1
+      ? `Are you sure you want to delete 1 selected job posting?`
+      : `Are you sure you want to delete all ${count} selected job postings?\n\nThis will move them out of active listings.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const deleteBtn = document.getElementById('btnDeleteSelected');
+    const originalText = deleteBtn ? deleteBtn.innerHTML : '';
+    if (deleteBtn) {
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = `Deleting ${count} jobs...`;
+    }
+
+    try {
+      const res = await fetch('/api/masteradmin/jobs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobIds: selectedIds })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        // Animate out and remove deleted rows
+        selectedIds.forEach(id => {
+          const row = document.querySelector(`.job-row[data-job-id="${id}"]`);
+          if (row) {
+            row.style.transition = 'all 0.3s ease';
+            row.style.opacity = '0';
+            row.style.transform = 'translateX(20px)';
+            setTimeout(() => row.remove(), 300);
+          }
+        });
+
+        setTimeout(() => {
+          updateSelectionUI();
+          const remaining = document.querySelectorAll('.job-row:not([style*="display: none"])').length;
+          if (countDisplay) countDisplay.textContent = remaining;
+
+          if (remaining === 0) {
+            const tbody = document.querySelector('#jobsTable tbody');
+            if (tbody) {
+              tbody.innerHTML = `
+                <tr>
+                  <td colspan="7" class="empty-cell">
+                    <div class="empty-state">
+                      <div class="empty-icon">📢</div>
+                      <h3>No Active Jobs Found</h3>
+                      <p>There are currently no active job postings available on the platform.</p>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }
+          }
+        }, 350);
+
+        if (window.showToast) {
+          window.showToast(`${count} job posting(s) deleted successfully!`, 'success');
+        } else {
+          alert(`${count} job posting(s) deleted successfully!`);
+        }
+      } else {
+        const errDetail = data.details ? `: ${data.details}` : '';
+        alert((data.error || 'Failed to delete selected jobs.') + errDetail);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('An error occurred while deleting selected jobs.');
+    } finally {
+      if (deleteBtn) {
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = originalText;
+      }
+    }
+  };
+
+  // Open Details Modal
+  window.openJobDetailsModal = function(jobId) {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+
+    const modal = document.getElementById('jobDetailsModal');
+    const titleEl = document.getElementById('modalJobTitle');
+    const companyLocEl = document.getElementById('modalCompanyLocation');
+    const empTypeEl = document.getElementById('modalEmpType');
+    const expLevelEl = document.getElementById('modalExpLevel');
+    const salaryEl = document.getElementById('modalSalary');
+    const appsEl = document.getElementById('modalApps');
+    const descEl = document.getElementById('modalDescription');
+    const sourceBadge = document.getElementById('modalSourceBadge');
+    const extWrap = document.getElementById('modalExternalUrlWrap');
+    const extLink = document.getElementById('modalExternalUrl');
+    const deleteBtn = document.getElementById('modalDeleteBtn');
+
+    const isCrawled = job.id.startsWith('crawled_') || job.id.startsWith('external_');
+    const displayCompany = job.employerCompany || (job.employerFirstName ? `${job.employerFirstName} ${job.employerLastName || ''}`.trim() : (isCrawled ? 'Crawled Employer' : 'Company'));
+
+    if (titleEl) titleEl.textContent = job.jobTitle;
+    if (companyLocEl) companyLocEl.textContent = `${displayCompany} • 📍 ${job.locationCity || (job.locationRemote ? 'Remote' : 'Flexible')}`;
+    if (empTypeEl) empTypeEl.textContent = job.employmentType || 'Full-time';
+    if (expLevelEl) expLevelEl.textContent = job.experienceLevel || 'Mid-Level';
+    
+    if (salaryEl) {
+      if (job.salaryMin || job.salaryMax) {
+        const curr = job.salaryCurrency || '$';
+        salaryEl.textContent = `${curr}${job.salaryMin ? job.salaryMin.toLocaleString() : '0'} - ${curr}${job.salaryMax ? job.salaryMax.toLocaleString() : 'Negotiable'}`;
+      } else {
+        salaryEl.textContent = 'Not Disclosed';
+      }
+    }
+
+    if (appsEl) appsEl.textContent = job.applicationsCount || '0';
+
+    if (sourceBadge) {
+      sourceBadge.className = `source-badge ${isCrawled ? 'badge-crawled' : 'badge-direct'} mb-1`;
+      sourceBadge.textContent = isCrawled ? '🤖 Crawled / External Job' : '🏢 Direct Employer Listing';
+    }
+
+    if (extWrap && extLink) {
+      if (job.externalApplyUrl) {
+        extWrap.style.display = 'flex';
+        extLink.href = job.externalApplyUrl;
+      } else {
+        extWrap.style.display = 'none';
+      }
+    }
+
+    if (descEl) {
+      const raw = job.description || '<p style="color: var(--color-text-muted);">No detailed description provided.</p>';
+      // Sanitize dangerous tags/attributes
+      const cleanDesc = raw
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+        .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+      descEl.innerHTML = cleanDesc;
+    }
+
+    if (deleteBtn) {
+      deleteBtn.onclick = () => {
+        closeJobDetailsModal();
+        window.deleteJobFromMasterAdmin(job.id, job.jobTitle);
+      };
+    }
+
+    if (modal) modal.style.display = 'flex';
+  };
+
+  window.closeJobDetailsModal = function() {
+    const modal = document.getElementById('jobDetailsModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  // Close modal on background click
+  window.addEventListener('click', (e) => {
+    const modal = document.getElementById('jobDetailsModal');
+    if (e.target === modal) {
+      modal.style.display = 'none';
+    }
+  });
+
+  // Single Delete Job Action
+  window.deleteJobFromMasterAdmin = async function(jobId, jobTitle) {
+    if (!confirm(`Are you sure you want to delete "${jobTitle}"?\n\nThis will remove the job posting from active listings.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/masteradmin/jobs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Remove row from table smoothly
+        const row = document.querySelector(`.job-row[data-job-id="${jobId}"]`);
+        if (row) {
+          row.style.transition = 'all 0.3s ease';
+          row.style.opacity = '0';
+          row.style.transform = 'translateX(20px)';
+          setTimeout(() => {
+            row.remove();
+            updateSelectionUI();
+            const remaining = document.querySelectorAll('.job-row:not([style*="display: none"])').length;
+            if (countDisplay) countDisplay.textContent = remaining;
+          }, 300);
+        }
+
+        if (window.showToast) {
+          window.showToast('Job posting deleted successfully!', 'success');
+        } else {
+          alert('Job posting deleted successfully!');
+        }
+      } else {
+        alert(data.error || 'Failed to delete job posting.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('An error occurred while deleting the job.');
+    }
+  };
+</script>
+
+
+<style>
+  .mb-1 { margin-bottom: 0.25rem; }
+  .mb-3 { margin-bottom: 1rem; }
+  .mb-4 { margin-bottom: 1.75rem; }
+  .text-left { text-align: left; }
+
+  /* Dashboard Header */
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .badge-tag {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+  }
+
+  .header-titles h1 {
+    margin: 0 0 0.3rem 0;
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--color-text-main, #0F172A);
+  }
+
+  .subtitle {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--color-text-muted, #64748B);
+  }
+
+  .stats-counter-pill {
+    padding: 0.5rem 1rem;
+    background: var(--color-surface, #FFFFFF);
+    border: 1px solid var(--color-border, #E2E8F0);
+    border-radius: 12px;
+    font-size: 0.88rem;
+    color: var(--color-text-muted, #64748B);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  }
+  .stats-counter-pill strong {
+    color: #a855f7;
+    font-size: 1.1rem;
+  }
+
+  /* Search Section */
+  .search-bar-container {
+    background: var(--color-surface, #FFFFFF);
+    border: 1px solid var(--color-border, #E2E8F0);
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  }
+
+  /* Bulk Actions Toolbar */
+  .bulk-actions-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(147, 51, 234, 0.06));
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 14px;
+    padding: 0.85rem 1.25rem;
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.1);
+    animation: fadeInSlide 0.2s ease-out;
+  }
+  @keyframes fadeInSlide {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .bulk-actions-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .bulk-count-badge {
+    background: #a855f7;
+    color: #ffffff;
+    font-size: 0.82rem;
+    font-weight: 800;
+    padding: 0.3rem 0.75rem;
+    border-radius: 9999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+
+  .bulk-info-text {
+    font-size: 0.88rem;
+    color: var(--color-text-main, #1E293B);
+    font-weight: 600;
+  }
+
+  .bulk-actions-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-bulk-deselect {
+    background: transparent;
+    border: 1px solid var(--color-border, #CBD5E1);
+    color: var(--color-text-muted, #64748B);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+  .btn-bulk-deselect:hover {
+    background: var(--color-bg, #F1F5F9);
+    color: var(--color-text-main, #0F172A);
+  }
+
+  .btn-bulk-delete {
+    background: #EF4444;
+    color: #ffffff;
+    border: none;
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+  .btn-bulk-delete:hover {
+    background: #DC2626;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 640px) {
+    .bulk-actions-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0.75rem 1rem;
+      gap: 0.65rem;
+    }
+    .bulk-actions-info {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    .bulk-info-text {
+      font-size: 0.8rem;
+      flex: 1 1 auto;
+    }
+    .bulk-actions-buttons {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+    .btn-bulk-deselect, .btn-bulk-delete {
+      width: 100%;
+      text-align: center;
+      justify-content: center;
+      padding: 0.5rem 0.4rem;
+      font-size: 0.78rem;
+    }
+  }
+
+  /* Custom Checkbox Styling */
+  .job-checkbox-input {
+    width: 18px;
+    height: 18px;
+    accent-color: #a855f7;
+    cursor: pointer;
+    vertical-align: middle;
+    border-radius: 4px;
+  }
+
+  .selected-row {
+    background-color: rgba(168, 85, 247, 0.08) !important;
+  }
+
+
+  .search-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--color-bg, #F8FAFC);
+    border: 1px solid var(--color-border, #E2E8F0);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+  }
+
+  .search-input-wrapper:focus-within {
+    border-color: #a855f7;
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+  }
+
+  .search-icon {
+    font-size: 1.1rem;
+    opacity: 0.6;
+  }
+
+  .search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--color-text-main, #0F172A);
+    font-size: 0.95rem;
+    outline: none;
+    font-family: inherit;
+  }
+  .search-input::placeholder {
+    color: var(--color-text-muted, #94A3B8);
+  }
+
+  /* Table Card */
+  .table-card {
+    background: var(--color-surface, #FFFFFF);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--color-border, #E2E8F0);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+  }
+
+  .table-responsive {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .data-table {
+    width: 100%;
+    min-width: 920px;
+    border-collapse: collapse;
+    text-align: left;
+  }
+
+  .data-table th {
+    padding: 1.1rem 1.25rem;
+    font-weight: 700;
+    color: var(--color-text-muted, #64748B);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--color-border, #E2E8F0);
+    background: rgba(248, 250, 252, 0.6);
+    white-space: nowrap;
+  }
+
+  .data-table td {
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--color-border, #E2E8F0);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .job-row:hover {
+    background: rgba(168, 85, 247, 0.03);
+  }
+
+  /* Cell Content Styles */
+  .job-title-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 0.98rem;
+    color: var(--color-text-main, #0F172A);
+    transition: color 0.15s ease;
+  }
+  .job-title-txt {
+    font-weight: 700;
+    color: var(--color-text-main, #0F172A);
+  }
+  .job-title-btn:hover .job-title-txt {
+    color: #a855f7;
+    text-decoration: underline;
+  }
+
+  .job-sub-meta {
+    font-size: 0.78rem;
+    color: var(--color-text-muted, #64748B);
+    margin-top: 0.25rem;
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+
+  .company-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .company-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--color-text-main, #1E293B);
+  }
+  .recruiter-sub {
+    font-size: 0.75rem;
+    color: var(--color-text-muted, #64748B);
+  }
+
+  .type-loc-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    align-items: flex-start;
+  }
+  .location-badge {
+    font-size: 0.8rem;
+    color: var(--color-text-main, #334155);
+    font-weight: 500;
+  }
+  .type-pill {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    background: rgba(168, 85, 247, 0.1);
+    color: #a855f7;
+    font-weight: 600;
+  }
+
+  .source-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+  }
+  .badge-crawled {
+    background: rgba(245, 158, 11, 0.12);
+    color: #D97706;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+  .badge-direct {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+
+  .date-text {
+    font-size: 0.82rem;
+    color: var(--color-text-muted, #64748B);
+    font-weight: 500;
+  }
+
+  /* Action Buttons */
+  .action-btn-group {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+  }
+
+  .btn-action {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .btn-view {
+    background: var(--color-surface, #FFFFFF);
+    border: 1px solid var(--color-border, #CBD5E1);
+    color: var(--color-text-main, #334155);
+  }
+  .btn-view:hover {
+    border-color: #a855f7;
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.06);
+  }
+
+  .btn-delete {
+    background: rgba(239, 68, 68, 0.1);
+    color: #EF4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+  }
+  .btn-delete:hover {
+    background: #EF4444;
+    color: #FFFFFF;
+    border-color: #EF4444;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  }
+
+  .empty-cell {
+    text-align: center;
+    padding: 3.5rem 1.5rem !important;
+  }
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .empty-icon {
+    font-size: 2.5rem;
+  }
+  .empty-state h3 {
+    margin: 0;
+    color: var(--color-text-main);
+  }
+  .empty-state p {
+    margin: 0;
+    color: var(--color-text-muted);
+  }
+
+  /* Modal Backdrop & Popup */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(6px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+  .modal-content {
+    background: var(--color-surface, #FFFFFF);
+    border-radius: 18px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--color-border, #E2E8F0);
+    animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes modalPop {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-border, #E2E8F0);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .modal-title {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin: 0;
+    color: var(--color-text-main, #0F172A);
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    cursor: pointer;
+    color: var(--color-text-muted, #64748B);
+    line-height: 1;
+  }
+  .modal-close:hover { color: var(--color-text-main, #0F172A); }
+
+  .modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+  }
+
+  .details-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+  }
+  .detail-box {
+    background: var(--color-bg, #F8FAFC);
+    border: 1px solid var(--color-border, #E2E8F0);
+    padding: 0.75rem 0.9rem;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .box-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted, #64748B);
+    font-weight: 600;
+  }
+  .box-value {
+    font-size: 0.88rem;
+    color: var(--color-text-main, #0F172A);
+    font-weight: 700;
+  }
+
+  .external-link-banner {
+    background: rgba(168, 85, 247, 0.08);
+    border: 1px dashed rgba(168, 85, 247, 0.3);
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--color-text-main, #334155);
+  }
+  .external-link {
+    color: #a855f7;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .external-link:hover { text-decoration: underline; }
+
+  .description-section h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--color-text-main);
+  }
+  .job-description-content {
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--color-text-main, #334155);
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+    background: var(--color-bg, #F8FAFC);
+    border: 1px solid var(--color-border, #E2E8F0);
+    border-radius: 10px;
+    padding: 1rem;
+  }
+
+  .modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--color-border, #E2E8F0);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  .btn-modal {
+    padding: 0.55rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .btn-cancel {
+    background: var(--color-bg, #F1F5F9);
+    border: 1px solid var(--color-border, #CBD5E1);
+    color: var(--color-text-main, #475569);
+  }
+  .btn-confirm-delete {
+    background: #EF4444;
+    border: 1px solid #EF4444;
+    color: #FFFFFF;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  }
+  .btn-confirm-delete:hover {
+    background: #DC2626;
+  }
+
+  @media (max-width: 640px) {
+    .details-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .dashboard-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+  }
+
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+</style>

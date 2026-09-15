@@ -1,9 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
+
+const redirectParam = Astro.url.searchParams.get("redirect") || "";
 ---
 
-<Layout hideNavAndFooter={true}>
+<Layout hideNavAndFooter={true} title="Log In - JobNed">
   <main class="auth-container">
     <a href="/" class="back-home-link">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -15,7 +17,23 @@ import Header from '../components/Header.astro';
     <div class="auth-card card">
       <div class="auth-header">
         <h1>Welcome Back</h1>
-        <p>Log in to your RecruitNest account</p>
+        <p>Log in to your JobNed account</p>
+      </div>
+
+      <div class="social-auth">
+        <a href={redirectParam ? `/api/auth/google/redirect?redirect=${encodeURIComponent(redirectParam)}` : "/api/auth/google/redirect"} class="btn-google-auth">
+          <svg width="20" height="20" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </a>
+      </div>
+
+      <div class="auth-divider">
+        <span>or log in with email</span>
       </div>
 
       <form class="auth-form" id="login-form">
@@ -54,7 +72,7 @@ import Header from '../components/Header.astro';
       </form>
 
       <div class="auth-footer">
-        <p>Don't have an account? <a href="/pricing" class="text-primary fw-600">Choose a plan & Sign up</a></p>
+        <p>Don't have an account? <a href={redirectParam ? `/register?type=employee&redirect=${encodeURIComponent(redirectParam)}` : "/register"} class="text-primary fw-600">Sign up</a></p>
       </div>
     </div>
   </main>
@@ -206,8 +224,72 @@ import Header from '../components/Header.astro';
     color: var(--color-text-muted);
   }
 
-  .fw-600 {
+  .social-auth {
+    margin-bottom: 1rem;
+  }
+
+  .btn-google-auth {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem 1rem;
+    background: #ffffff !important;
+    color: #1f1f1f !important;
+    border: 1px solid #dadce0 !important;
+    border-radius: var(--border-radius-md, 10px);
+    font-size: 0.95rem;
     font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .btn-google-auth:hover {
+    background: #f8f9fa !important;
+    border-color: #d2e3fc !important;
+    box-shadow: 0 2px 8px rgba(66, 133, 244, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .auth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1.25rem 0;
+    color: var(--color-text-muted, #94a3b8);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .auth-divider::before,
+  .auth-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+  }
+
+  .auth-divider span {
+    padding: 0 0.75rem;
+  }
+
+  @media (max-width: 640px) {
+    .auth-container {
+      padding: 5rem 1rem 2rem 1rem;
+      align-items: flex-start;
+    }
+    .back-home-link {
+      top: 1rem;
+      left: 1rem;
+      font-size: 0.85rem;
+      padding: 0.4rem 0.85rem;
+    }
+    .auth-card {
+      padding: 1.5rem 1.25rem;
+    }
   }
 </style>
 
@@ -252,19 +334,35 @@ import Header from '../components/Header.astro';
         
         const data = await res.json();
         if (res.ok) {
+          // Set cookie or local storage, then redirect
+          document.cookie = `auth_token=${data.token}; path=/; max-age=86400`;
+
+          if (data.requirePayment && data.redirectUrl) {
+            window.location.href = data.redirectUrl;
+            return;
+          }
+
           if (data.user.userType === 'employer' && !data.user.planId) {
             showToast('You must buy a premium plan first before logging in.');
             window.location.href = '/#pricing';
             return;
           }
-          // Set cookie or local storage, then redirect
-          document.cookie = `auth_token=${data.token}; path=/; max-age=86400`;
           
-          if (data.user.userType === 'employer') window.location.href = '/employer';
-          else if (data.user.userType === 'masteradmin') window.location.href = '/masteradmin';
-          else if (data.user.userType === 'superadmin') window.location.href = '/superadmin';
-          else if (data.user.userType === 'admin') window.location.href = '/admin';
-          else window.location.href = '/dashboard';
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirectUrl = urlParams.get('redirect');
+          const isSafeRedirect = redirectUrl && redirectUrl.startsWith('/') && !redirectUrl.startsWith('//');
+
+          if (data.user.userType === 'employer') {
+            window.location.href = isSafeRedirect ? redirectUrl : '/employer';
+          } else if (data.user.userType === 'masteradmin') {
+            window.location.href = '/masteradmin';
+          } else if (data.user.userType === 'superadmin') {
+            window.location.href = '/superadmin';
+          } else if (data.user.userType === 'admin') {
+            window.location.href = '/admin';
+          } else {
+            window.location.href = isSafeRedirect ? redirectUrl : '/dashboard';
+          }
         } else {
           showToast(data.error || 'Login failed');
         }

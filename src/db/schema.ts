@@ -76,6 +76,9 @@ export const jobPostings = sqliteTable('job_postings', {
   maxResumesAllowed: integer('max_resumes_allowed'),
   viewCount: integer('view_count').default(0),
   applicationFormConfig: text('application_form_config', { mode: 'json' }), // JSON Object for custom required fields and questions
+  externalApplyUrl: text('external_apply_url'), // Link to company career page / ATS if external
+  applyMode: text('apply_mode').default('internal'), // 'internal' | 'redirect' | 'native_forward'
+  sourceType: text('source_type').default('internal'), // 'internal' | 'crawled'
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   publishedAt: integer('published_at', { mode: 'timestamp' }),
   closedAt: integer('closed_at', { mode: 'timestamp' }),
@@ -205,5 +208,42 @@ export const savedJobs = sqliteTable('saved_jobs', {
   jobData: text('job_data', { mode: 'json' }), // JSON snapshot of job details
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
+
+// --- CRAWLER STAGING QUEUE ---
+export const crawledJobsQueue = sqliteTable('crawled_jobs_queue', {
+  id: text('id').primaryKey(), // unique hash of company+jobTitle+originalUrl
+  sourceUrl: text('source_url').notNull(),
+  sourceType: text('source_type').default('career_page').notNull(), // 'greenhouse' | 'lever' | 'career_page' | 'rss'
+  companyName: text('company_name').notNull(),
+  companyWebsite: text('company_website'),
+  companyLogo: text('company_logo'),
+  companyTier: text('company_tier').default('startup_small'), // 'big_tech' | 'startup_small'
+  jobTitle: text('job_title').notNull(),
+  description: text('description').notNull(),
+  requirements: text('requirements', { mode: 'json' }), // JSON array of strings
+  salaryMin: real('salary_min'),
+  salaryMax: real('salary_max'),
+  salaryCurrency: text('salary_currency').default('USD'),
+  locationCity: text('location_city'),
+  locationRemote: integer('location_remote', { mode: 'boolean' }).default(false),
+  employmentType: text('employment_type').default('Full-time'),
+  experienceLevel: text('experience_level').default('Mid'),
+  externalApplyUrl: text('external_apply_url'),
+  contactEmail: text('contact_email'),
+  applyMode: text('apply_mode').default('redirect'), // 'redirect' | 'native_forward'
+  originalPostedAt: integer('original_posted_at', { mode: 'timestamp' }), // used to strictly enforce < 24 hrs rule
+  status: text('status').default('pending').notNull(), // 'pending' | 'published' | 'skipped' | 'failed'
+  publishedJobId: text('published_job_id'),
+  crawledAt: integer('crawled_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  publishedAt: integer('published_at', { mode: 'timestamp' }),
+});
+
+// --- CRAWLER CONFIG & RATE LIMIT SETTINGS ---
+export const crawlerSettings = sqliteTable('crawler_settings', {
+  key: text('key').primaryKey(), // 'jobs_per_batch' | 'interval_hours' | 'max_age_hours' | 'auto_publish' | 'last_run_at'
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});
+
 
 

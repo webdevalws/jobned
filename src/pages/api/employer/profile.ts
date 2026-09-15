@@ -39,18 +39,28 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       // @ts-ignore
       const bucket = env?.BUCKET;
       if (bucket) {
-        const ext = photoFile.name.split('.').pop() || 'png';
-        const key = `avatars/${user.userId}-${Date.now()}.${ext}`;
-        const buffer = await photoFile.arrayBuffer();
-        
-        await bucket.put(key, buffer, {
-          httpMetadata: {
-            contentType: photoFile.type
-          }
-        });
-        avatarUrl = `/api/uploads/${key}`;
+        try {
+          const ext = photoFile.name.split('.').pop() || 'png';
+          const key = `avatars/${user.userId}-${Date.now()}.${ext}`;
+          const buffer = await photoFile.arrayBuffer();
+          
+          await bucket.put(key, buffer, {
+            httpMetadata: {
+              contentType: photoFile.type
+            }
+          });
+          avatarUrl = `/api/uploads/${key}`;
+        } catch (err) {
+          console.warn('R2 put failed, falling back to data URL:', err);
+          const buffer = await photoFile.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          avatarUrl = `data:${photoFile.type || 'image/png'};base64,${base64}`;
+        }
       } else {
-        console.warn('R2 BUCKET binding not found in env');
+        console.warn('R2 BUCKET binding not found in env, using data URL fallback');
+        const buffer = await photoFile.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        avatarUrl = `data:${photoFile.type || 'image/png'};base64,${base64}`;
       }
     }
 

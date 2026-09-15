@@ -23,11 +23,22 @@ const formatPrice = (price: number, currency: string) => {
 const formatLimit = (limit: number) => {
   return limit >= 999999 ? 'Unlimited' : limit.toLocaleString();
 };
+
+const getButtonText = (plan: typeof p001, isUserLoggedIn: boolean) => {
+  const isPaid = (plan.price || 0) > 0;
+  const formatted = formatPrice(plan.price, plan.currency);
+  if (isPaid) {
+    return isUserLoggedIn
+      ? `Buy ${plan.planName} (${formatted})`
+      : `Get Started (${formatted})`;
+  }
+  return isUserLoggedIn ? `Select ${plan.planName} (Free)` : 'Sign Up Free';
+};
 ---
 
 <Layout
-  title="Pricing & Subscription Plans - RecruitNest"
-  description="Transparent hiring and recruitment pricing plans for startups, growing tech teams, and enterprises. Start free today with RecruitNest."
+  title="Pricing & Subscription Plans - JobNed"
+  description="Transparent hiring and recruitment pricing plans for startups, growing tech teams, and enterprises. Start free today with JobNed."
   keywords="recruitment pricing, hiring plan subscription, ATS pricing, candidate matching software cost"
   schemaType="SoftwareApplication"
 >
@@ -41,7 +52,7 @@ const formatLimit = (limit: number) => {
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
             <line x1="12" y1="22.08" x2="12" y2="12"></line>
           </svg>
-          <span style="font-weight: 800; font-size: 1.25rem;">RecruitNest</span>
+          <span class="logo-text">Job<span class="highlight">Ned</span></span>
         </a>
       </div>
       <nav class="nav-links">
@@ -114,11 +125,16 @@ const formatLimit = (limit: number) => {
           </ul>
 
           <div class="card-action">
-            {user ? (
-              <button class="btn btn-outline w-full rzp-button" data-plan="P001">Select Basic Plan</button>
-            ) : (
-              <a href="/register?plan=P001" class="btn btn-outline w-full">Sign Up Free</a>
-            )}
+            <button 
+              type="button" 
+              class="btn btn-primary w-full checkout-btn" 
+              data-plan="P001"
+              data-price={p001.price}
+              data-currency={p001.currency}
+              data-planname={p001.planName}
+            >
+              {getButtonText(p001, !!user)}
+            </button>
           </div>
         </div>
       </div>
@@ -166,11 +182,16 @@ const formatLimit = (limit: number) => {
           </ul>
 
           <div class="card-action">
-            {user ? (
-              <button class="btn btn-primary w-full rzp-button" data-plan="P002">Select Growth Plan</button>
-            ) : (
-              <a href="/register?plan=P002" class="btn btn-primary w-full">Sign Up Free</a>
-            )}
+            <button 
+              type="button" 
+              class="btn btn-primary w-full checkout-btn" 
+              data-plan="P002"
+              data-price={p002.price}
+              data-currency={p002.currency}
+              data-planname={p002.planName}
+            >
+              {getButtonText(p002, !!user)}
+            </button>
           </div>
         </div>
       </div>
@@ -216,11 +237,16 @@ const formatLimit = (limit: number) => {
           </ul>
 
           <div class="card-action">
-            {user ? (
-              <button class="btn btn-outline w-full rzp-button" data-plan="P003">Select Premium Plan</button>
-            ) : (
-              <a href="/register?plan=P003" class="btn btn-outline w-full">Sign Up Free</a>
-            )}
+            <button 
+              type="button" 
+              class="btn btn-primary w-full checkout-btn" 
+              data-plan="P003"
+              data-price={p003.price}
+              data-currency={p003.currency}
+              data-planname={p003.planName}
+            >
+              {getButtonText(p003, !!user)}
+            </button>
           </div>
         </div>
       </div>
@@ -232,39 +258,289 @@ const formatLimit = (limit: number) => {
     </div>
   </main>
 
-  <script define:vars={{ userType: user?.userType || 'employee' }}>
-    document.querySelectorAll('.rzp-button').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const planId = e.target.getAttribute('data-plan');
-        const oldText = e.target.innerText;
-        e.target.innerText = 'Activating...';
-        e.target.disabled = true;
+  <!-- Razorpay Payment Gateway Modal (Supports live checkout & test simulation) -->
+  <div id="rzpSimModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card rzp-modal-card">
+      <div class="rzp-brand-header">
+        <div class="rzp-brand-left">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="rzp-logo-svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+          <span class="rzp-brand-title">Razorpay <span class="badge-trusted">SECURE</span></span>
+        </div>
+        <button type="button" class="rzp-close" id="closeRzpSimModal" aria-label="Close payment modal">&times;</button>
+      </div>
+
+      <div class="rzp-order-bar">
+        <div>
+          <span class="rzp-order-label">RecruitNest Subscription</span>
+          <h3 class="rzp-plan-name" id="simPlanTitle">Basic Plan</h3>
+        </div>
+        <div class="rzp-price-tag" id="simPriceTag">$1.00</div>
+      </div>
+
+      <div class="rzp-test-notice">
+        <span class="pulse-dot"></span>
+        <span>Payment Gateway Ready &bull; Sandbox Test Mode</span>
+      </div>
+
+      <div class="rzp-methods">
+        <label class="rzp-method active">
+          <input type="radio" name="rzp_method" value="card" checked />
+          <div class="method-info">
+            <span class="method-name">💳 Cards (Credit/Debit)</span>
+            <span class="method-desc">Visa, Mastercard, RuPay &amp; Amex</span>
+          </div>
+        </label>
+        <label class="rzp-method">
+          <input type="radio" name="rzp_method" value="upi" />
+          <div class="method-info">
+            <span class="method-name">📱 UPI / QR</span>
+            <span class="method-desc">Google Pay, PhonePe, Paytm, BHIM</span>
+          </div>
+        </label>
+        <label class="rzp-method">
+          <input type="radio" name="rzp_method" value="netbanking" />
+          <div class="method-info">
+            <span class="method-name">🏦 Netbanking</span>
+            <span class="method-desc">All major domestic &amp; global banks</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="rzp-sim-actions">
+        <button type="button" class="btn btn-primary w-full rzp-pay-btn" id="simConfirmPayBtn">
+          Pay <span id="simPayAmount">$1.00</span> &amp; Activate Plan
+        </button>
+        <button type="button" class="btn btn-outline w-full" id="simCancelPayBtn">Cancel</button>
+      </div>
+
+      <div class="rzp-footer-note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span>256-Bit Encrypted &bull; Razorpay Payment Infrastructure</span>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <script define:vars={{ initialIsLoggedIn: !!user, userType: user?.userType || 'employer' }}>
+    let isLoggedIn = initialIsLoggedIn;
+    let currentOrderData = null;
+
+    const rzpModal = document.getElementById('rzpSimModal');
+
+    // Ensure Razorpay SDK script is ready
+    async function ensureRazorpayScript() {
+      if (typeof window.Razorpay !== 'undefined') return true;
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.onload = () => resolve(true);
+        s.onerror = () => resolve(false);
+        document.body.appendChild(s);
+      });
+    }
+
+    // Initiate checkout for any plan
+    async function startCheckout(planId, price, currency, planName, clickedBtn) {
+      const parsedPrice = parseFloat(price) || 0;
+
+      // If user is not logged in, redirect directly to registration page
+      if (!isLoggedIn) {
+        window.location.href = `/register?plan=${encodeURIComponent(planId)}&type=employer`;
+        return;
+      }
+
+      // 1. Free plan flow for logged-in user
+      if (parsedPrice <= 0) {
+        const originalText = clickedBtn ? clickedBtn.innerText : '';
+        if (clickedBtn) {
+          clickedBtn.innerText = 'Activating...';
+          clickedBtn.disabled = true;
+        }
 
         try {
-          const verifyRes = await fetch('/api/payments/verify', {
+          const res = await fetch('/api/payments/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              planId,
-              billingCycle: 'monthly'
-            })
+            body: JSON.stringify({ planId, billingCycle: 'monthly' })
           });
-
-          if (verifyRes.ok) {
-            alert('Plan activated successfully!');
+          const data = await res.json();
+          if (res.ok) {
+            alert(`🎉 ${planName || 'Plan'} activated successfully!`);
             window.location.href = userType === 'employer' ? '/employer' : '/dashboard';
           } else {
-            alert('Failed to activate plan.');
+            alert(data.error || 'Failed to activate plan.');
+            if (clickedBtn) {
+              clickedBtn.innerText = originalText;
+              clickedBtn.disabled = false;
+            }
           }
         } catch (err) {
-          console.error(err);
-          alert('An error occurred during activation.');
-        } finally {
-          e.target.innerText = oldText;
-          e.target.disabled = false;
+          alert('Network error while activating free plan.');
+          if (clickedBtn) {
+            clickedBtn.innerText = originalText;
+            clickedBtn.disabled = false;
+          }
         }
+        return;
+      }
+
+      // 2. Paid plan flow for logged-in user -> redirect to dedicated checkout page
+      if (parsedPrice > 0) {
+        window.location.href = `/checkout?plan=${encodeURIComponent(planId)}`;
+        return;
+      }
+    }
+
+    // Triggers either live Razorpay or seamless high-fidelity simulation
+    async function triggerGateway(orderData, clickedBtn, originalText) {
+      await ensureRazorpayScript();
+
+      const isPlaceholderKey = !orderData.keyId ||
+        orderData.keyId.includes('placeholder') ||
+        orderData.keyId.includes('dummy') ||
+        orderData.orderId.startsWith('order_mock_');
+
+      if (!isPlaceholderKey && typeof window.Razorpay !== 'undefined') {
+        // Live Razorpay credentials
+        try {
+          const options = {
+            key: orderData.keyId,
+            amount: orderData.amount,
+            currency: orderData.currency,
+            name: "RecruitNest",
+            description: `${orderData.planName} Subscription`,
+            order_id: orderData.orderId,
+            prefill: {
+              name: orderData.userName || "",
+              email: orderData.userEmail || ""
+            },
+            theme: { color: "#4f46e5" },
+            handler: async function (response) {
+              await verifyAndComplete(orderData.planId, response.razorpay_order_id, response.razorpay_payment_id, response.razorpay_signature);
+            },
+            modal: {
+              ondismiss: function () {
+                if (clickedBtn) {
+                  clickedBtn.innerText = originalText;
+                  clickedBtn.disabled = false;
+                }
+              }
+            }
+          };
+
+          const rzp = new window.Razorpay(options);
+          rzp.open();
+          return;
+        } catch (liveErr) {
+          console.warn('Live Razorpay invocation fallback to test gateway:', liveErr);
+        }
+      }
+
+      // Display the Razorpay-themed test modal
+      openRzpSimModal(orderData);
+      if (clickedBtn) {
+        clickedBtn.innerText = originalText;
+        clickedBtn.disabled = false;
+      }
+    }
+
+    // Verify payment with server and activate
+    async function verifyAndComplete(planId, orderId, paymentId, signature) {
+      const confirmBtn = document.getElementById('simConfirmPayBtn');
+      if (confirmBtn) {
+        confirmBtn.innerText = 'Verifying with Server...';
+        confirmBtn.disabled = true;
+      }
+
+      try {
+        const verifyRes = await fetch('/api/payments/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId,
+            billingCycle: 'monthly',
+            razorpay_order_id: orderId,
+            razorpay_payment_id: paymentId,
+            razorpay_signature: signature
+          })
+        });
+
+        const verifyData = await verifyRes.json();
+
+        if (verifyRes.ok) {
+          alert('🎉 Payment verified successfully! Your subscription is now active.');
+          window.location.href = userType === 'employer' ? '/employer' : '/dashboard';
+        } else {
+          alert(verifyData.error || 'Payment verification failed.');
+          if (confirmBtn) {
+            confirmBtn.innerText = 'Pay & Activate Plan';
+            confirmBtn.disabled = false;
+          }
+        }
+      } catch (err) {
+        console.error('Verify error:', err);
+        alert('Network error while verifying payment.');
+        if (confirmBtn) {
+          confirmBtn.innerText = 'Pay & Activate Plan';
+          confirmBtn.disabled = false;
+        }
+      }
+    }
+
+    function openRzpSimModal(orderData) {
+      const symbol = orderData.currency === 'INR' ? '₹' : '$';
+      const formatted = `${symbol}${(orderData.amount / 100).toFixed(2)}`;
+      document.getElementById('simPlanTitle').innerText = `${orderData.planName} (Monthly)`;
+      document.getElementById('simPriceTag').innerText = formatted;
+      document.getElementById('simPayAmount').innerText = formatted;
+      rzpModal.style.display = 'flex';
+    }
+
+    // Setup button listeners
+    document.querySelectorAll('.checkout-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const t = e.currentTarget;
+        const planId = t.getAttribute('data-plan') || 'P001';
+        const price = t.getAttribute('data-price') || '0';
+        const currency = t.getAttribute('data-currency') || 'USD';
+        const planName = t.getAttribute('data-planname') || 'Plan';
+        startCheckout(planId, price, currency, planName, t);
       });
     });
+
+    // Close Modal
+    document.getElementById('closeRzpSimModal')?.addEventListener('click', () => {
+      rzpModal.style.display = 'none';
+    });
+    document.getElementById('simCancelPayBtn')?.addEventListener('click', () => {
+      rzpModal.style.display = 'none';
+    });
+
+    // Simulated Gateway Confirmation Click
+    document.getElementById('simConfirmPayBtn')?.addEventListener('click', async () => {
+      if (!currentOrderData) return;
+      const mockPaymentId = `pay_sim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const mockSignature = `sig_sim_${Date.now()}`;
+      await verifyAndComplete(currentOrderData.planId, currentOrderData.orderId, mockPaymentId, mockSignature);
+    });
+
+    // Auto-checkout if user arrived via /pricing?plan=P001
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoPlan = urlParams.get('plan');
+    if (autoPlan && isLoggedIn) {
+      const matchBtn = document.querySelector(`.checkout-btn[data-plan="${autoPlan}"]`);
+      if (matchBtn) {
+        matchBtn.click();
+      }
+    }
   </script>
 </Layout>
 
@@ -553,5 +829,241 @@ const formatLimit = (limit: number) => {
     .pricing-container {
       padding: 2rem 1rem 4rem 1rem;
     }
+  }
+
+  /* Modal Backdrop & Cards */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(10, 15, 30, 0.75);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    overflow-y: auto;
+  }
+
+  .modal-card {
+    background: var(--color-surface, #1e293b);
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 480px;
+    position: relative;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6);
+    color: var(--color-text-main, #f8fafc);
+    animation: modalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  :global([data-theme="light"]) .modal-card {
+    background: #ffffff;
+    box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15);
+  }
+
+  @keyframes modalPop {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted, #94a3b8);
+    font-size: 1.75rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.25rem;
+    transition: color 0.15s;
+  }
+  .modal-close:hover {
+    color: var(--color-text-main, #ffffff);
+  }
+
+  /* Razorpay Specific Simulation Modal */
+  .rzp-modal-card {
+    max-width: 440px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid #1e3a8a;
+  }
+
+  .rzp-brand-header {
+    background: linear-gradient(135deg, #0c2340 0%, #172554 100%);
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  }
+
+  .rzp-brand-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .rzp-brand-title {
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+  }
+
+  .badge-trusted {
+    background: rgba(59, 130, 246, 0.25);
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
+    font-size: 0.68rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-weight: 700;
+    margin-left: 0.4rem;
+  }
+
+  .rzp-close {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .rzp-order-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem;
+    background: rgba(15, 23, 42, 0.5);
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  }
+
+  .rzp-order-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    color: var(--color-text-muted, #94a3b8);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .rzp-plan-name {
+    margin: 0.2rem 0 0 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--color-text-main, #ffffff);
+  }
+
+  .rzp-price-tag {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #10b981;
+  }
+
+  .rzp-test-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.25rem;
+    background: rgba(16, 185, 129, 0.1);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #34d399;
+  }
+
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35);
+  }
+
+  .rzp-methods {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .rzp-method {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+    background: var(--color-bg, #0f172a);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .rzp-method:hover, .rzp-method.active {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.08);
+  }
+
+  .rzp-method input[type="radio"] {
+    accent-color: #3b82f6;
+  }
+
+  .method-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .method-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--color-text-main, #ffffff);
+  }
+
+  .method-desc {
+    font-size: 0.75rem;
+    color: var(--color-text-muted, #94a3b8);
+  }
+
+  .rzp-sim-actions {
+    padding: 0 1.25rem 1.25rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .rzp-pay-btn {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border: none;
+    font-size: 1rem;
+    padding: 0.85rem;
+  }
+  .rzp-pay-btn:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  }
+
+  .rzp-footer-note {
+    padding: 0.75rem 1.25rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.06));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    font-size: 0.72rem;
+    color: var(--color-text-muted, #94a3b8);
   }
 </style>

@@ -3,9 +3,9 @@ import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout
-  title="About Us - Transforming Tech Recruitment | RecruitNest"
-  description="Learn how RecruitNest connects top tech talent with innovative companies using AI candidate matching, automated screening, and streamlined interview workflows."
-  keywords="about recruitnest, tech hiring platform, AI candidate matching, recruitment technology"
+  title="About Us - Transforming Tech Recruitment | JobNed"
+  description="Learn how JobNed connects top tech talent with innovative companies using AI candidate matching, automated screening, and streamlined interview workflows."
+  keywords="about jobned, tech hiring platform, AI candidate matching, recruitment technology"
   schemaType="Organization"
 >
   <!-- Navigation Header (Consistent with Landing Page) -->
@@ -18,7 +18,7 @@ import Layout from '../layouts/Layout.astro';
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
             <line x1="12" y1="22.08" x2="12" y2="12"></line>
           </svg>
-          <span>RecruitNest</span>
+          <span class="logo-text">Job<span class="highlight">Ned</span></span>
         </a>
       </div>
       <nav class="nav-links">
@@ -48,7 +48,7 @@ import Layout from '../layouts/Layout.astro';
           Connecting the World's Best Talent with <span class="text-primary">Visionary Companies</span>
         </h1>
         <p class="hero-subtitle">
-          At RecruitNest, we believe that finding the right job—or the right candidate—shouldn't be a struggle. We are building the most intuitive, powerful, and transparent hiring platform on the internet.
+          At JobNed, we believe that finding the right job—or the right candidate—shouldn't be a struggle. We are building the most intuitive, powerful, and transparent hiring platform on the internet.
         </p>
       </div>
     </section>
@@ -59,10 +59,10 @@ import Layout from '../layouts/Layout.astro';
         <div class="story-content">
           <h2>Our Story</h2>
           <p>
-            Founded in 2024, RecruitNest started with a simple observation: the traditional hiring process is broken. Job seekers send hundreds of applications into the void, while employers struggle to filter through thousands of mismatched resumes.
+            Founded in 2024, JobNed started with a simple observation: the traditional hiring process is broken. Job seekers send hundreds of applications into the void, while employers struggle to filter through thousands of mismatched resumes.
           </p>
           <p>
-            We decided to fix it. By leveraging smart algorithms, clean design, and a user-first approach, we've created an ecosystem where talent meets opportunity seamlessly. Today, thousands of companies trust RecruitNest to build their dream teams, and millions of professionals use our platform to accelerate their careers.
+            We decided to fix it. By leveraging smart algorithms, clean design, and a user-first approach, we've created an ecosystem where talent meets opportunity seamlessly. Today, thousands of companies trust JobNed to build their dream teams, and millions of professionals use our platform to accelerate their careers.
           </p>
         </div>
         <div class="story-image">
@@ -87,7 +87,7 @@ import Layout from '../layouts/Layout.astro';
         <div class="value-card">
           <div class="value-icon">🔒</div>
           <h3>Trust & Transparency</h3>
-          <p>Every company on RecruitNest is verified, and we maintain complete transparency about job requirements, salaries, and application status.</p>
+          <p>Every company on JobNed is verified, and we maintain complete transparency about job requirements, salaries, and application status.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">⚡</div>
@@ -174,7 +174,7 @@ import Layout from '../layouts/Layout.astro';
     <section class="cta-section">
       <div class="cta-container">
         <h2>Ready to get started?</h2>
-        <p>Join the thousands of professionals and companies already using RecruitNest.</p>
+        <p>Join the thousands of professionals and companies already using JobNed.</p>
         <div class="cta-buttons">
           <a href="/pricing" class="btn btn-primary btn-lg">I want to hire</a>
           <a href="/pricing" class="btn btn-outline-white btn-lg">I'm looking for jobs</a>
@@ -376,11 +376,15 @@ import Layout from '../layouts/Layout.astro';
   .team-grid {
     max-width: 1100px;
     margin: 0 auto;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 2rem;
   }
   .team-member {
+    flex: 1 1 220px;
+    max-width: 250px;
+    width: 100%;
     text-align: center;
     padding: 2.5rem 2rem;
   }
@@ -409,9 +413,9 @@ import Layout from '../layouts/Layout.astro';
     font-weight: 500;
     margin: 0;
   }
-  @media (max-width: 768px) {
-    .team-grid {
-      grid-template-columns: 1fr;
+  @media (max-width: 600px) {
+    .team-member {
+      max-width: 320px;
     }
   }
 

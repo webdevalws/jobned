@@ -12,7 +12,7 @@ import Layout from '../layouts/Layout.astro';
           <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
           <line x1="12" y1="22.08" x2="12" y2="12"></line>
         </svg>
-        <span>RecruitNest</span>
+        <span class="logo-text">Job<span class="highlight">Ned</span></span>
       </div>
       <nav class="nav-links" style="margin-left: auto; margin-right: 2rem;">
         <a href="/pricing">Pricing</a>
@@ -85,7 +85,7 @@ import Layout from '../layouts/Layout.astro';
                 <div class="match-ring-container">
                   <svg class="match-ring" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="8"></circle>
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="url(#ringGradient)" stroke-width="8" stroke-dasharray="264" stroke-dashoffset="60" stroke-linecap="round" class="ring-progress"></circle>
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="url(#ringGradient)" stroke-width="8" stroke-dasharray="264" stroke-dashoffset="20" stroke-linecap="round" class="ring-progress"></circle>
                     <defs>
                       <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stop-color="#A78BFA" />
@@ -193,7 +193,7 @@ import Layout from '../layouts/Layout.astro';
     <!-- How It Works -->
     <section class="how-it-works">
       <div class="section-header">
-        <h2>How RecruitNest Works</h2>
+        <h2>How JobNed Works</h2>
         <p>Three simple steps to your next big career move</p>
       </div>
       <div class="steps-grid">
@@ -218,7 +218,7 @@ import Layout from '../layouts/Layout.astro';
     <!-- Features -->
     <section class="features">
       <div class="section-header reveal-on-scroll">
-        <h2>Why Choose RecruitNest?</h2>
+        <h2>Why Choose JobNed?</h2>
         <p>Smart features to accelerate your career journey</p>
       </div>
       
@@ -266,7 +266,7 @@ import Layout from '../layouts/Layout.astro';
       <div class="testimonials-grid">
         <div class="testimonial-card reveal-on-scroll delay-100">
           <div class="stars">⭐⭐⭐⭐⭐</div>
-          <p class="quote">"I applied to dozens of places with no luck. Within a week on RecruitNest, I had three interviews and landed a Senior Developer role!"</p>
+          <p class="quote">"I applied to dozens of places with no luck. Within a week on JobNed, I had three interviews and landed a Senior Developer role!"</p>
           <div class="author">
             <div class="author-avatar" style="background:#DBEAFE; color:#1D4ED8;">JD</div>
             <div class="author-info">
@@ -290,7 +290,7 @@ import Layout from '../layouts/Layout.astro';
         
         <div class="testimonial-card reveal-on-scroll delay-300">
           <div class="stars">⭐⭐⭐⭐⭐</div>
-          <p class="quote">"As an employer, the quality of candidates we get from RecruitNest is unmatched. We filled our open positions in half the time."</p>
+          <p class="quote">"As an employer, the quality of candidates we get from JobNed is unmatched. We filled our open positions in half the time."</p>
           <div class="author">
             <div class="author-avatar" style="background:#FEF3C7; color:#B45309;">RJ</div>
             <div class="author-info">
@@ -306,7 +306,7 @@ import Layout from '../layouts/Layout.astro';
     <section class="bottom-cta">
       <div class="cta-content">
         <h2>Ready to take the next step?</h2>
-        <p>Join thousands of companies and professionals already using RecruitNest.</p>
+        <p>Join thousands of companies and professionals already using JobNed.</p>
         <div class="cta-actions">
           <a href="/pricing" class="btn btn-primary btn-lg">Create an Account</a>
           <a href="/about" class="btn btn-outline btn-lg" style="background: white;">Learn More</a>
@@ -698,7 +698,7 @@ import Layout from '../layouts/Layout.astro';
   
   @keyframes drawRing {
     from { stroke-dashoffset: 264; }
-    to { stroke-dashoffset: 60; }
+    to { stroke-dashoffset: 20; }
   }
   
   @keyframes fillBar {

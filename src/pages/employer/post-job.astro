@@ -760,9 +760,15 @@ if (!payload || payload.userType !== 'employer') {
 
   :global(.stage-card-grid) {
     display: grid;
-    grid-template-columns: minmax(135px, 1fr) 2fr 3fr;
-    gap: 1rem;
-    align-items: end;
+    grid-template-columns: minmax(160px, 180px) 1.5fr 2.5fr;
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  :global(.stage-icon-input) {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .btn-add-stage {

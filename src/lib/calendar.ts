@@ -59,7 +59,7 @@ export function generateICSContent(event: CalendarEvent): string {
   const start = new Date(event.startTime);
   const end = new Date(start.getTime() + event.durationMinutes * 60 * 1000);
   const now = new Date();
-  const uid = `interview-${start.getTime()}-${Math.random().toString(36).substring(2, 9)}@recruitnest.com`;
+  const uid = `interview-${start.getTime()}-${Math.random().toString(36).substring(2, 9)}@jobned.com`;
 
   const cleanDescription = (event.description || '').replace(/\r?\n/g, '\\n').replace(/,/g, '\\,');
   const cleanTitle = (event.title || '').replace(/,/g, '\\,');
@@ -68,7 +68,7 @@ export function generateICSContent(event: CalendarEvent): string {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//RecruitNest//Interview Scheduling//EN',
+    'PRODID:-//JobNed//Interview Scheduling//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:REQUEST',
     'BEGIN:VEVENT',
@@ -84,7 +84,7 @@ export function generateICSContent(event: CalendarEvent): string {
     'BEGIN:VALARM',
     'TRIGGER:-PT15M',
     'ACTION:DISPLAY',
-    'DESCRIPTION:Reminder: Upcoming Interview with RecruitNest',
+    'DESCRIPTION:Reminder: Upcoming Interview with JobNed',
     'END:VALARM',
     'END:VEVENT',
     'END:VCALENDAR'

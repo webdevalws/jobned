@@ -101,7 +101,7 @@ export const GET: APIRoute = async (context) => {
   
   const csvRows = apps.map(app => {
     const isAlightway = app.userType === "external_applicant" || (app.jobId && app.jobId.startsWith("external_")) || (app.notes && app.notes.includes("Alightway"));
-    const source = isAlightway ? "Alightway Website" : "RecruitNest Platform";
+    const source = isAlightway ? "Alightway Website" : "JobNed Platform";
     const name = `"${app.applicantFirstName || ''} ${app.applicantLastName || ''}"`.trim();
     const email = `"${app.applicantEmail || ''}"`;
     const phone = `"${app.applicantPhone || ''}"`;

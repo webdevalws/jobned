@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
-import { users } from '../../../db/schema';
+import { users, plans } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyToken } from '../../../lib/auth';
+import { verifyRazorpaySignature } from '../../../lib/razorpay';
 
 export const GET: APIRoute = async ({ request, url }) => {
   const userType = url.searchParams.get('userType') || 'employee';
@@ -14,8 +15,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 };
 
 export const POST: APIRoute = async ({ request, cookies, locals, url }) => {
-  // @ts-ignore
-  let user = locals?.user;
+  // 1. Authenticate User
+  let user = (locals as any)?.user;
   
   if (!user) {
     const authHeader = request.headers.get('Authorization');
@@ -45,23 +46,93 @@ export const POST: APIRoute = async ({ request, cookies, locals, url }) => {
 
   try {
     const contentType = request.headers.get('content-type') || '';
-    let planId = 'P001';
+    let body: any = {};
 
     if (contentType.includes('application/json')) {
-      const data = await request.json().catch(() => ({}));
-      planId = data.planId || url.searchParams.get('planId') || 'P001';
+      body = await request.json().catch(() => ({}));
     } else {
       const formData = await request.formData().catch(() => new FormData());
-      const reqUrl = new URL(request.url);
-      planId = reqUrl.searchParams.get('planId') || (formData.get('planId') as string) || 'P001';
+      for (const [key, value] of formData.entries()) {
+        body[key] = value;
+      }
     }
 
-    const db = getDb();
-    
-    // Set plan to expire in 100 years
-    const planExpiresAt = new Date();
-    planExpiresAt.setFullYear(planExpiresAt.getFullYear() + 100);
+    const planId = body.planId || url.searchParams.get('planId') || 'P001';
+    const billingCycle = body.billingCycle || url.searchParams.get('billingCycle') || 'monthly';
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
 
+    const db = getDb();
+
+    // 2. Fetch Plan to check if it's free or paid
+    const targetPlan = await db.select().from(plans).where(eq(plans.planId, planId)).get();
+    const rawPrice = billingCycle === 'annual'
+      ? (targetPlan?.annualPrice && targetPlan.annualPrice > 0 ? targetPlan.annualPrice : (targetPlan?.price || 0) * 10)
+      : (targetPlan?.price || 0);
+
+    const price = Number(rawPrice) || 0;
+
+    // 3. If plan is paid (price > 0), verify Razorpay payment
+    if (price > 0) {
+      let isVerified = false;
+
+      // Method A: Verify HMAC Signature if paymentId and signature are present
+      if (razorpay_order_id && razorpay_payment_id && razorpay_signature) {
+        isVerified = await verifyRazorpaySignature({
+          orderId: razorpay_order_id,
+          paymentId: razorpay_payment_id,
+          signature: razorpay_signature
+        });
+      }
+
+      // Method B: Fallback to direct Razorpay Orders API verification
+      if (!isVerified && razorpay_order_id) {
+        const { checkOrderPaymentStatus } = await import('../../../lib/razorpay');
+        const orderStatus = await checkOrderPaymentStatus({ orderId: razorpay_order_id });
+
+        if (orderStatus.isPaid) {
+          isVerified = true;
+        } else if (orderStatus.status === 'failed') {
+          return new Response(JSON.stringify({ 
+            error: orderStatus.error || 'Payment was declined or blocked by gateway.',
+            code: 'PAYMENT_FAILED'
+          }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } else if (orderStatus.status === 'pending') {
+          return new Response(JSON.stringify({ 
+            pending: true,
+            message: 'Payment is currently pending confirmation from UPI / Bank. Please wait a moment.' 
+          }), {
+            status: 202,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
+      if (!isVerified) {
+        return new Response(JSON.stringify({ 
+          error: 'Payment verification failed. No completed transaction found on Razorpay.' 
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // 4. Calculate Expiry Date
+    const planExpiresAt = new Date();
+    if (price <= 0) {
+      // Free plan expires in 100 years
+      planExpiresAt.setFullYear(planExpiresAt.getFullYear() + 100);
+    } else if (billingCycle === 'annual') {
+      planExpiresAt.setFullYear(planExpiresAt.getFullYear() + 1);
+    } else {
+      // Monthly
+      planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
+    }
+
+    // 5. Update user subscription status in D1
     await db.update(users)
       .set({
         planId: planId,
@@ -70,14 +141,19 @@ export const POST: APIRoute = async ({ request, cookies, locals, url }) => {
       })
       .where(eq(users.id, activeUserId));
 
-    return new Response(JSON.stringify({ success: true, message: 'Plan activated successfully' }), {
+    return new Response(JSON.stringify({
+      success: true,
+      message: price > 0 ? 'Payment verified and plan activated!' : 'Free plan activated successfully!',
+      planId,
+      planExpiresAt: planExpiresAt.toISOString()
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error activating plan:', error);
-    return new Response(JSON.stringify({ error: 'Internal Server Error' }), { 
+    return new Response(JSON.stringify({ error: error.message || 'Internal Server Error' }), { 
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

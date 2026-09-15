@@ -37,11 +37,11 @@ export const GET: APIRoute = async ({ url, locals }) => {
     }
 
     const description = [
-      `Interview for ${item.jobTitle} with ${item.companyName || 'RecruitNest Employer'}.`,
+      `Interview for ${item.jobTitle} with ${item.companyName || 'JobNed Employer'}.`,
       item.interviewerNames ? `Interviewers: ${item.interviewerNames}` : '',
       item.meetingLink ? `Meeting Link / Location: ${item.meetingLink}` : '',
       item.notes ? `\nAgenda / Instructions:\n${item.notes}` : '',
-      '\nScheduled via RecruitNest.'
+      '\nScheduled via JobNed.'
     ].filter(Boolean).join('\n');
 
     const icsString = generateICSContent({

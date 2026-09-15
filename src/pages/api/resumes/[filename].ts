@@ -17,7 +17,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
     }
 
     // @ts-ignore
-    const bucket = env.BUCKET;
+    const bucket = env?.BUCKET;
+    if (!bucket) {
+      return new Response('Storage bucket not configured', { status: 503 });
+    }
     const object = await bucket.get(filename);
 
     if (object === null) {
@@ -33,6 +36,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     const headers = new Headers();
     object.writeHttpMetadata(headers);
     headers.set('Content-Type', contentType);
+    headers.set('Content-Disposition', `inline; filename="${filename}"`);
     headers.set('etag', object.httpEtag);
     headers.set('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
 

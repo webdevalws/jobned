@@ -166,15 +166,15 @@ function getCountdownBadge(scheduledAt: any) {
         <div class="interviews-grid">
           {upcomingInterviews.map((item) => {
             const googleCalUrl = generateGoogleCalendarUrl({
-              title: `${item.title} - ${item.companyName || 'RecruitNest Employer'}`,
-              description: `Interview for position: ${item.jobTitle}\nCompany: ${item.companyName || 'RecruitNest Employer'}\n\nInstructions:\n${item.notes || 'None'}`,
+              title: `${item.title} - ${item.companyName || 'JobNed Employer'}`,
+              description: `Interview for position: ${item.jobTitle}\nCompany: ${item.companyName || 'JobNed Employer'}\n\nInstructions:\n${item.notes || 'None'}`,
               location: item.meetingLink || 'Online Video Meeting',
               startTime: item.scheduledAt,
               durationMinutes: item.durationMinutes || 45
             });
             const outlookCalUrl = generateOutlookCalendarUrl({
-              title: `${item.title} - ${item.companyName || 'RecruitNest Employer'}`,
-              description: `Interview for position: ${item.jobTitle}\nCompany: ${item.companyName || 'RecruitNest Employer'}`,
+              title: `${item.title} - ${item.companyName || 'JobNed Employer'}`,
+              description: `Interview for position: ${item.jobTitle}\nCompany: ${item.companyName || 'JobNed Employer'}`,
               location: item.meetingLink || 'Online Video Meeting',
               startTime: item.scheduledAt,
               durationMinutes: item.durationMinutes || 45

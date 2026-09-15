@@ -14,57 +14,56 @@ const logoHomePath =
       <div class="logo">
         <a href={logoHomePath} style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit;">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-          <span class="logo-text">RecruitNest</span>
+          <span class="logo-text">Job<span class="highlight">Ned</span></span>
         </a>
       </div>
       <p class="brand-desc">
         Connecting top-tier talent with world-class opportunities. Build your future with the most intelligent job matching platform.
       </p>
-      <div class="social-links">
-        <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" aria-label="Twitter"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path></svg></a>
-        <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg></a>
-        <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg></a>
-      </div>
     </div>
     
     <div class="footer-links">
       <h4>Candidate Features</h4>
       <ul>
         <li><a href="/jobs">Browse All Jobs</a></li>
-        <li><a href="/jobs">AI Match Scoring</a></li>
+        <li><a href="/recommended">Recommended Jobs</a></li>
         <li><a href="/applications">Application Tracker</a></li>
-        <li><a href="/saved">Saved Bookmarks</a></li>
-        <li><a href="/settings">Candidate Profile</a></li>
+        <li><a href="/saved">Saved Jobs</a></li>
+        <li><a href="/settings">Profile &amp; Settings</a></li>
       </ul>
     </div>
 
     <div class="footer-links">
       <h4>Employer Features</h4>
       <ul>
-        <li><a href="/employer/post-job">Post Job Opening</a></li>
-        <li><a href="/employer/screening">AI Vector Screening</a></li>
-        <li><a href="/employer/post-job">Stage Journey Builder</a></li>
         <li><a href="/employer">Employer Dashboard</a></li>
-        <li><a href="/pricing">Subscription Pricing</a></li>
+        <li><a href="/employer/post-job">Post Job Opening</a></li>
+        <li><a href="/employer/jobs">Manage Job Listings</a></li>
+        <li><a href="/employer/applications">Candidate Applications</a></li>
+        <li><a href="/employer/interviews">Interview Schedule</a></li>
+        <li><a href="/employer/screening">AI Candidate Screening</a></li>
       </ul>
     </div>
 
-    <div class="footer-newsletter">
-      <h4>Stay Updated</h4>
-      <p>Subscribe to our newsletter for the latest job market trends.</p>
-      <form class="newsletter-form" onsubmit="event.preventDefault(); window.showToast('Subscribed to newsletter successfully!', 'success');">
-        <input type="email" placeholder="Enter your email" required />
-        <button type="submit" class="btn btn-primary">Subscribe</button>
-      </form>
+    <div class="footer-links">
+      <h4>Company &amp; Access</h4>
+      <ul>
+        <li><a href="/about">About Us</a></li>
+        <li><a href="/pricing">Subscription Pricing</a></li>
+        <li><a href="/privacy">Privacy Policy</a></li>
+        <li><a href="/login">Account Sign In</a></li>
+        <li><a href="/register">Register Free</a></li>
+      </ul>
     </div>
   </div>
   
   <div class="footer-bottom container">
-    <p>&copy; {new Date().getFullYear()} RecruitNest. All rights reserved.</p>
+    <p>&copy; {new Date().getFullYear()} JobNed. All rights reserved.</p>
     <div class="legal-links">
+      <a href="/about">About Us</a>
+      <a href="/pricing">Pricing</a>
       <a href="/privacy">Privacy Policy</a>
-      <a href="/privacy#user-rights">Terms of Service</a>
-      <a href="/privacy#cookies">Cookie Policy</a>
+      <button type="button" onclick="if(typeof window.openCookiePreferences === 'function') window.openCookiePreferences()" class="footer-cookie-btn">Cookie Preferences ⚙️</button>
     </div>
   </div>
 </footer>
@@ -85,8 +84,8 @@ const logoHomePath =
 
   .footer-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1.5fr;
-    gap: 3rem;
+    grid-template-columns: 1.8fr 1fr 1.2fr 1fr;
+    gap: 2.5rem;
     margin-bottom: 3rem;
   }
 
@@ -112,31 +111,7 @@ const logoHomePath =
     max-width: 320px;
   }
 
-  .social-links {
-    display: flex;
-    gap: 1rem;
-  }
-
-  .social-links a {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background-color: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: 50%;
-    color: var(--color-text-muted);
-    transition: all 0.2s;
-  }
-
-  .social-links a:hover {
-    color: var(--color-primary);
-    border-color: var(--color-primary);
-  }
-
-  .footer-links h4,
-  .footer-newsletter h4 {
+  .footer-links h4 {
     font-size: 1.125rem;
     color: var(--color-text-main);
     margin-bottom: 1.25rem;
@@ -163,32 +138,6 @@ const logoHomePath =
     color: var(--color-primary);
   }
 
-  .footer-newsletter p {
-    color: var(--color-text-muted);
-    font-size: 0.95rem;
-    margin-bottom: 1rem;
-  }
-
-  .newsletter-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .newsletter-form input {
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius-md);
-    background-color: var(--color-bg);
-    color: var(--color-text-main);
-    font-family: inherit;
-    outline: none;
-  }
-
-  .newsletter-form input:focus {
-    border-color: var(--color-primary);
-  }
-
   .footer-bottom {
     display: flex;
     justify-content: space-between;
@@ -204,12 +153,21 @@ const logoHomePath =
     gap: 1.5rem;
   }
 
-  .legal-links a {
+  .legal-links a,
+  .footer-cookie-btn {
     color: inherit;
     text-decoration: none;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.2s;
   }
 
-  .legal-links a:hover {
+  .legal-links a:hover,
+  .footer-cookie-btn:hover {
     color: var(--color-primary);
   }
 
@@ -233,24 +191,16 @@ const logoHomePath =
     .footer-brand {
       grid-column: span 2;
     }
-    .footer-newsletter {
-      grid-column: span 2;
-    }
     .brand-desc {
       max-width: 100%;
       font-size: 0.875rem;
       margin-bottom: 1rem;
     }
-    .footer-links h4,
-    .footer-newsletter h4 {
+    .footer-links h4 {
       font-size: 0.95rem;
       margin-bottom: 0.75rem;
     }
     .footer-links a {
-      font-size: 0.875rem;
-    }
-    .newsletter-form input {
-      padding: 0.65rem 0.875rem;
       font-size: 0.875rem;
     }
     .footer-bottom {

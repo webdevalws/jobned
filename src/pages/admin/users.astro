@@ -107,7 +107,7 @@ const appCountMap = new Map(appCounts.map(a => [a.applicantId, a.appCount]));
 
               return (
                 <tr class={`candidate-row ${isBlocked ? 'blocked-row' : ''}`} data-user-id={cand.id}>
-                  <td>
+                  <td class="col-user">
                     <div class="user-meta-cell">
                       <div class="user-avatar-circle">
                         {cand.firstName.charAt(0).toUpperCase()}
@@ -118,26 +118,26 @@ const appCountMap = new Map(appCounts.map(a => [a.applicantId, a.appCount]));
                       </div>
                     </div>
                   </td>
-                  <td>
-                    <span class="email-txt">{cand.email}</span>
+                  <td class="col-email">
+                    <a href={`mailto:${cand.email}`} class="email-txt">✉️ {cand.email}</a>
                   </td>
-                  <td>
+                  <td class="col-location">
                     <div class="location-exp-cell">
                       <span>📍 {cand.location || 'Not Specified'}</span>
                       <small>⏱ {cand.experienceYears ? `${cand.experienceYears} Yrs Exp` : 'Fresh / Entry'}</small>
                     </div>
                   </td>
-                  <td>
+                  <td class="col-apps">
                     <span class="apps-badge">
                       <strong>{totalApps}</strong> Applied
                     </span>
                   </td>
-                  <td>
+                  <td class="col-status">
                     <span class={`account-pill ${isBlocked ? 'pill-blocked' : 'pill-active'}`}>
                       {isBlocked ? '🔴 Suspended' : '🟢 Active'}
                     </span>
                   </td>
-                  <td>
+                  <td class="col-actions">
                     <div class="actions-group">
                       <!-- Quick View Modal Button -->
                       <button 
@@ -827,12 +827,14 @@ const appCountMap = new Map(appCounts.map(a => [a.applicantId, a.appCount]));
       background: var(--color-surface) !important;
       backdrop-filter: blur(16px) !important;
       border: 1px solid var(--color-border) !important;
-      border-radius: var(--border-radius-md) !important;
+      border-radius: var(--border-radius-lg, 14px) !important;
       padding: 1.15rem 1rem !important;
       margin-bottom: 1rem !important;
       display: flex !important;
-      flex-direction: column !important;
-      gap: 0.75rem !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      align-items: center !important;
+      gap: 0.55rem !important;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
     }
 
@@ -841,13 +843,101 @@ const appCountMap = new Map(appCounts.map(a => [a.applicantId, a.appCount]));
       border: none !important;
     }
 
+    .col-user {
+      width: 100% !important;
+    }
+
+    .user-meta-cell {
+      width: 100% !important;
+      white-space: normal !important;
+    }
+
+    .user-name-txt {
+      white-space: normal !important;
+      word-break: break-word !important;
+      display: block !important;
+    }
+
+    .user-headline-sub {
+      white-space: normal !important;
+      word-break: break-word !important;
+    }
+
+    .col-email {
+      width: 100% !important;
+      margin-top: -0.15rem !important;
+      margin-bottom: 0.2rem !important;
+    }
+
+    .email-txt {
+      white-space: normal !important;
+      word-break: break-all !important;
+      color: var(--color-text-muted) !important;
+      font-size: 0.85rem !important;
+      text-decoration: none !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.35rem !important;
+    }
+
+    .email-txt:hover {
+      color: var(--color-primary) !important;
+    }
+
+    .col-location {
+      width: 100% !important;
+      margin-bottom: 0.25rem !important;
+    }
+
+    .location-exp-cell {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      align-items: center !important;
+      gap: 0.65rem !important;
+      font-size: 0.85rem !important;
+      color: var(--color-text-muted) !important;
+    }
+
+    .col-apps,
+    .col-status {
+      display: inline-flex !important;
+      align-items: center !important;
+      width: auto !important;
+      flex: 0 0 auto !important;
+    }
+
+    .apps-badge,
+    .account-pill {
+      height: 28px !important;
+      box-sizing: border-box !important;
+      font-size: 0.76rem !important;
+      padding: 0.25rem 0.65rem !important;
+      line-height: 1 !important;
+    }
+
+    .col-actions {
+      width: 100% !important;
+      margin-top: 0.35rem !important;
+    }
+
     .actions-group {
       width: 100% !important;
       justify-content: flex-start !important;
-      gap: 0.5rem !important;
-      padding-top: 0.65rem !important;
+      gap: 0.6rem !important;
+      padding-top: 0.75rem !important;
       border-top: 1px solid var(--color-border) !important;
-      margin-top: 0.25rem !important;
+    }
+
+    .btn-action-icon {
+      width: 38px !important;
+      height: 38px !important;
+      border-radius: 10px !important;
+      font-size: 1rem !important;
+    }
+
+    .table-card {
+      margin-bottom: 2.5rem !important;
     }
 
     .modal-card {

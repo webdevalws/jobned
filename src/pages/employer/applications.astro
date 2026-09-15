@@ -15,6 +15,15 @@ const jobFilter = Astro.url.searchParams.get('jobId') || '';
 
 const db = getDb();
 
+// Fetch employer's job postings to populate the job filter dropdown
+const employerJobs = await db.select({
+  id: jobPostings.id,
+  jobTitle: jobPostings.jobTitle,
+}).from(jobPostings)
+  .where(eq(jobPostings.employerId, payload.userId))
+  .orderBy(desc(jobPostings.createdAt))
+  .all();
+
 let query = db.select({
   id: applications.id,
   status: applications.status,
@@ -67,12 +76,9 @@ const getTabUrl = (status?: string) => {
       <span class="badge-tag">Recruiter Workspace</span>
       <h1>Received Applications</h1>
       <p class="subtitle">
-        {jobFilter ? `Viewing candidates who applied for "${currentJobTitle}"` : 'Review applicant submissions, compatibility scores, and update candidate hiring stages.'}
+        {jobFilter ? `Viewing candidates who applied for "${currentJobTitle}"` : 'Review applicant submissions and update candidate hiring stages.'}
       </p>
     </div>
-    <a href={jobFilter ? `/employer/screening?jobId=${jobFilter}` : '/employer/screening'} class="btn btn-primary btn-sm btn-header-ai">
-      ⚡ AI Smart Screening & Ranking
-    </a>
   </div>
 
   {jobFilter && (
@@ -109,169 +115,821 @@ const getTabUrl = (status?: string) => {
     </a>
   </div>
 
+  <!-- Search, Filter & Sorting Bar -->
+  <div class="controls-toolbar-card mb-4">
+    <div class="controls-row">
+      <!-- Search Input -->
+      <div class="control-group">
+        <label for="applicantSearchInput" class="control-label">Search Candidates:</label>
+        <div class="search-input-box">
+          <span class="control-icon">🔍</span>
+          <input 
+            type="text" 
+            id="applicantSearchInput" 
+            class="control-input" 
+            placeholder="Search by name, email, or role..." 
+          />
+        </div>
+      </div>
+
+      <!-- Filter by Role -->
+      <div class="control-group">
+        <label for="filterRoleSelect" class="control-label">Filter Role:</label>
+        <select id="filterRoleSelect" class="control-select">
+          <option value="all">All Jobs ({employerJobs.length})</option>
+          {employerJobs.map(j => (
+            <option value={j.id} selected={jobFilter === j.id}>{j.jobTitle}</option>
+          ))}
+        </select>
+      </div>
+
+      <!-- Sort Options -->
+      <div class="control-group">
+        <label for="sortSelect" class="control-label">Sort By:</label>
+        <select id="sortSelect" class="control-select sort-select">
+          <option value="date-desc">📅 Date: Newest First</option>
+          <option value="date-asc">⏳ Date: Oldest First</option>
+          <option value="name-asc">👤 Name: A to Z</option>
+          <option value="name-desc">👤 Name: Z to A</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Active Summary & Reset Toolbar -->
+    <div class="toolbar-footer">
+      <span class="results-count-txt">
+        Showing <strong id="visibleAppsCount">{filteredApps.length}</strong> of {allEmployerApps.length} applicants
+      </span>
+      <div class="toolbar-right-btns">
+        <button type="button" id="bulkSelectVisibleBtn" class="btn-select-all-toolbar" title="Select / Deselect all visible applicants">
+          ☑️ Select Filtered (<span id="selectFilteredCount">{filteredApps.length}</span>)
+        </button>
+        <button type="button" id="resetFiltersBtn" class="btn-reset-toolbar">
+          🔄 Reset Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="applications-container">
-    {filteredApps.length === 0 ? (
+    {allEmployerApps.length === 0 ? (
       <div class="empty-state">
         <div class="empty-icon">📂</div>
-        <h3>No applications match this filter</h3>
-        <p>There are no candidate applications currently under "{statusFilter ? statusFilter.replace('_', ' ') : 'All'}".</p>
-        <a href="/employer/applications" class="btn btn-outline mt-3">View All Applications</a>
+        <h3>No applications received yet</h3>
+        <p>No candidates have applied to your active job postings yet.</p>
       </div>
     ) : (
       <div class="table-responsive">
         <table class="data-table" id="applications-table">
           <thead>
             <tr>
-              <th>Applicant Name</th>
+              <th class="col-checkbox" style="width: 46px; text-align: center;">
+                <input type="checkbox" id="selectAllCheckbox" title="Select/Deselect All Visible Candidates" class="app-custom-checkbox" />
+              </th>
+              <th data-sort-col="name" style="cursor: pointer;" title="Click to Sort by Applicant Name">Applicant Name ↕️</th>
               <th>Applied Role</th>
-              <th style="cursor: pointer;" title="Sort by AI Match">AI Match ↕️</th>
               <th>Status</th>
-              <th>Submitted Date</th>
+              <th data-sort-col="date" style="cursor: pointer;" title="Click to Sort by Submitted Date">Submitted Date ↕️</th>
               <th class="col-actions">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {filteredApps.map((app) => (
-              <tr data-score={app.aiScore || 0} class="app-row">
-                <td class="col-applicant">
-                  <div class="applicant-cell">
-                    <div class="applicant-avatar">
-                      {(app.applicantFirstName?.[0] || 'C').toUpperCase()}
-                    </div>
-                    <div>
-                      <strong class="applicant-name">{app.applicantFirstName} {app.applicantLastName}</strong>
-                      <span class="applicant-email">{app.applicantEmail}</span>
-                    </div>
-                  </div>
-                </td>
-                <td class="col-role">
-                  <span class="job-role-text">💼 {app.jobTitle}</span>
-                </td>
-                <td class="col-match">
-                  <div class="mobile-badges-wrapper">
-                    {app.aiScore !== null ? (
-                      <span class="match-score-pill" style={`background: ${app.aiScore >= 80 ? 'rgba(16, 185, 129, 0.12)' : app.aiScore >= 50 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(239, 68, 68, 0.12)'}; color: ${app.aiScore >= 80 ? '#10b981' : app.aiScore >= 50 ? '#f59e0b' : '#ef4444'}; border: 1px solid ${app.aiScore >= 80 ? 'rgba(16, 185, 129, 0.3)' : app.aiScore >= 50 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'};`}>
-                        ✨ {app.aiScore}% Match
-                      </span>
-                    ) : (
-                      <div class="match-calc-wrap">
-                        <span class="badge-na">N/A</span>
-                        <button class="btn-icon btn-recalculate" data-id={app.id} title="Calculate AI Match">
-                          <span class="icon">⟳</span>
-                        </button>
+          <tbody id="applicationsTbody">
+            {allEmployerApps.map((app) => {
+              const appName = `${app.applicantFirstName || ''} ${app.applicantLastName || ''}`.trim();
+              const dateTs = app.appliedAt ? new Date(app.appliedAt).getTime() : 0;
+              const formattedDate = app.appliedAt ? new Date(app.appliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+              return (
+                <tr 
+                  class="app-row"
+                  data-id={app.id}
+                  data-name={appName.toLowerCase()}
+                  data-email={(app.applicantEmail || '').toLowerCase()}
+                  data-job-id={app.jobId}
+                  data-job-title={(app.jobTitle || '').toLowerCase()}
+                  data-status={app.status}
+                  data-date-ts={dateTs}
+                >
+                  <td class="col-checkbox" style="width: 46px; text-align: center;">
+                    <input 
+                      type="checkbox" 
+                      class="app-row-checkbox app-custom-checkbox" 
+                      data-id={app.id} 
+                      data-name={appName} 
+                      data-email={app.applicantEmail || ''} 
+                      data-job={app.jobTitle || ''} 
+                      title={`Select ${appName}`}
+                    />
+                  </td>
+                  <td class="col-applicant">
+                    <div class="applicant-cell">
+                      <div class="applicant-avatar">
+                        {(app.applicantFirstName?.[0] || 'C').toUpperCase()}
                       </div>
-                    )}
-                    <span class={`status-pill status-${app.status} desktop-status-pill`}>
+                      <div>
+                        <strong class="applicant-name">{appName}</strong>
+                        <span class="applicant-email">{app.applicantEmail}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="col-role">
+                    <span class="job-role-text">💼 {app.jobTitle}</span>
+                  </td>
+                  <td class="col-status">
+                    <span class={`status-pill status-${app.status}`}>
                       {app.status.replace('_', ' ').toUpperCase()}
                     </span>
-                  </div>
-                </td>
-                <td class="col-status">
-                  <span class={`status-pill status-${app.status} mobile-only-status`}>
-                    {app.status.replace('_', ' ').toUpperCase()}
-                  </span>
-                </td>
-                <td class="col-date">
-                  <span class="date-text">
-                    📅 {app.appliedAt ? new Date(app.appliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                  </span>
-                </td>
-                <td class="col-actions">
-                  <div class="mobile-footer-line">
-                    <span class="mobile-date-val">
-                      📅 {app.appliedAt ? new Date(app.appliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                  </td>
+                  <td class="col-date">
+                    <span class="date-text">
+                      📅 {formattedDate}
                     </span>
-                  </div>
-                  <div class="actions">
-                    {app.resumeUrl && (
-                      <a href={getResumeViewerUrl(app.resumeUrl, Astro.url.origin)} target="_blank" class="btn-action-icon" title="View Resume PDF">
-                        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                  </td>
+                  <td class="col-actions">
+                    <div class="mobile-footer-line">
+                      <span class="mobile-date-val">
+                        📅 {formattedDate}
+                      </span>
+                    </div>
+                    <div class="actions">
+                      {app.resumeUrl && (
+                        <a href={getResumeViewerUrl(app.resumeUrl, Astro.url.origin)} target="_blank" class="btn-action-icon" title="View Resume PDF">
+                          <svg class="icon-sm" width="18" height="18" style="width: 18px; height: 18px; display: block; flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </a>
+                      )}
+                      <a
+                        href={`/employer/interviews?appId=${app.id}&action=schedule`}
+                        class="btn btn-outline btn-sm btn-schedule"
+                        title="Schedule Interview Round"
+                      >
+                        <span>📅</span> Schedule
                       </a>
-                    )}
-                    <a
-                      href={`/employer/interviews?appId=${app.id}&action=schedule`}
-                      class="btn btn-outline btn-sm btn-schedule"
-                      title="Schedule Interview Round"
-                    >
-                      <span>📅</span> Schedule
-                    </a>
-                    <a href={`/employer/applications/${app.id}`} class="btn btn-primary btn-sm btn-review" title="View & Review Application">
-                      Review &rarr;
-                    </a>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      <a href={`/employer/applications/${app.id}`} class="btn btn-primary btn-sm btn-review" title="View & Review Application">
+                        Review &rarr;
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+        <div id="noMatchesMsg" class="empty-state" style="display: none; padding: 3rem 1.5rem;">
+          <div class="empty-icon">🔍</div>
+          <h3>No matching applicants found</h3>
+          <p>Try adjusting your search query or role filter.</p>
+        </div>
       </div>
     )}
   </div>
+
+  <!-- Floating Bulk Action Toolbar (shows when >= 1 candidate selected) -->
+  <div id="bulkActionBar" class="bulk-action-floating-bar" style="display: none;">
+    <div class="bulk-floating-content">
+      <div class="bulk-count-pill">
+        <span class="bulk-badge-dot"></span>
+        <span class="bulk-counter-txt"><strong id="selectedAppsCount">0</strong> <span class="txt-long-selected">Candidates </span>Selected</span>
+      </div>
+      <div class="bulk-actions-group">
+        <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-ghost-light" title="Clear selection">
+          ✕ Clear
+        </button>
+        <button type="button" id="openBulkScheduleModalBtn" class="btn btn-sm btn-primary btn-glow">
+          <span class="btn-text-full">⚡ Schedule Bulk Interviews &rarr;</span>
+          <span class="btn-text-short">⚡ Schedule &rarr;</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Interview Scheduling Modal -->
+  <div id="bulkScheduleModal" class="modal-backdrop" style="display: none;">
+    <div class="modal card modern-bulk-modal">
+      <div class="modal-header">
+        <div>
+          <div class="modal-badge">
+            <span class="dot-pulse"></span>
+            <span>Bulk Interview Setup</span>
+          </div>
+          <h2 class="modal-title">Schedule Interviews for Selected Candidates</h2>
+          <p class="modal-subtitle">Automatically generate staggered individual slots or a group session and send notifications directly to candidate portals.</p>
+        </div>
+        <button type="button" class="modal-close" id="closeBulkModalBtn" aria-label="Close modal">✕</button>
+      </div>
+
+      <form id="bulkScheduleForm" class="modal-body">
+        <!-- Selected Candidates Strip -->
+        <div class="form-group mb-3">
+          <div class="selected-candidates-header">
+            <label class="form-label mb-0">
+              <span class="label-text">Selected Students (<span id="modalSelectedCount">0</span>)</span>
+            </label>
+            <span class="label-hint">All selected students will be scheduled &amp; notified</span>
+          </div>
+          <div id="selectedCandidatesChips" class="selected-candidates-chips-wrap">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Interview Title & Format -->
+        <div class="form-grid-2 mb-3">
+          <div class="form-group">
+            <label for="bulkFormTitle" class="form-label">
+              <span class="label-text">Interview Title / Round <span class="required">*</span></span>
+            </label>
+            <input
+              type="text"
+              id="bulkFormTitle"
+              class="form-input"
+              placeholder="e.g. Round 1 Technical Screening"
+              value="Round 1 Technical Screening"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="bulkFormType" class="form-label">
+              <span class="label-text">Interview Format <span class="required">*</span></span>
+            </label>
+            <select id="bulkFormType" class="form-select" required>
+              <option value="video" selected>Video Call (Google Meet / Zoom)</option>
+              <option value="phone">Phone Screening</option>
+              <option value="in_person">In-Person Onsite Round</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Meeting Link / Location -->
+        <div class="form-group mb-3">
+          <label for="bulkFormMeetingLink" class="form-label">
+            <span class="label-text">Meeting Link or Location Address</span>
+            <span class="label-hint">Google Meet URL, Zoom link, or Office Room #</span>
+          </label>
+          <input
+            type="text"
+            id="bulkFormMeetingLink"
+            class="form-input"
+            placeholder="https://meet.google.com/xyz-abcd-efg or Corporate HQ Room 302"
+          />
+        </div>
+
+        <!-- Date & Slot Timing Options -->
+        <div class="form-grid-2 mb-3">
+          <div class="form-group">
+            <label for="bulkFormStartAt" class="form-label">
+              <span class="label-text">Start Date &amp; Time <span class="required">*</span></span>
+            </label>
+            <input
+              type="datetime-local"
+              id="bulkFormStartAt"
+              class="form-input"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="bulkFormDuration" class="form-label">
+              <span class="label-text">Duration per Candidate <span class="required">*</span></span>
+            </label>
+            <select id="bulkFormDuration" class="form-select" required>
+              <option value="15">15 Minutes</option>
+              <option value="30" selected>30 Minutes</option>
+              <option value="45">45 Minutes</option>
+              <option value="60">60 Minutes (1 Hour)</option>
+              <option value="90">90 Minutes</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Scheduling Strategy: Staggered vs Group -->
+        <div class="scheduling-strategy-box mb-3">
+          <label class="form-label mb-2">
+            <span class="label-text">Scheduling Strategy</span>
+          </label>
+          <div class="strategy-radios-grid">
+            <label class="strategy-option-card active" id="strategyCardStaggered">
+              <input type="radio" name="bulkSlotMode" value="staggered" checked />
+              <div class="strategy-card-inner">
+                <span class="strategy-icon">⏱️</span>
+                <div>
+                  <strong>Staggered Individual Slots</strong>
+                  <p>Each student gets their own consecutive time slot automatically (e.g. 10:00, 10:35, 11:10).</p>
+                </div>
+              </div>
+            </label>
+            <label class="strategy-option-card" id="strategyCardGroup">
+              <input type="radio" name="bulkSlotMode" value="group" />
+              <div class="strategy-card-inner">
+                <span class="strategy-icon">👥</span>
+                <div>
+                  <strong>Group / Batch Session</strong>
+                  <p>All students attend together at the same start time (e.g. Group Discussion or Orientation).</p>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Buffer between consecutive slots & Interviewer Name -->
+        <div class="form-grid-2 mb-3" id="bufferConfigRow">
+          <div class="form-group" id="bufferSelectGroup">
+            <label for="bulkFormBuffer" class="form-label">
+              <span class="label-text">Break Between Candidates</span>
+            </label>
+            <select id="bulkFormBuffer" class="form-select">
+              <option value="0">No Break (0 mins)</option>
+              <option value="5" selected>5 Minutes Break</option>
+              <option value="10">10 Minutes Break</option>
+              <option value="15">15 Minutes Break</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="bulkFormInterviewer" class="form-label">
+              <span class="label-text">Interviewer Name(s) <span class="label-optional">(Optional)</span></span>
+            </label>
+            <input
+              type="text"
+              id="bulkFormInterviewer"
+              class="form-input"
+              placeholder="e.g. Sarah &amp; David (Hiring Team)"
+            />
+          </div>
+        </div>
+
+        <!-- Notes / Preparation Instructions -->
+        <div class="form-group mb-3">
+          <label for="bulkFormNotes" class="form-label">
+            <span class="label-text">Interview Notes &amp; Instructions <span class="label-optional">(Optional)</span></span>
+          </label>
+          <textarea
+            id="bulkFormNotes"
+            class="form-textarea"
+            rows="2"
+            placeholder="e.g. Please ensure you have a working camera and microphone. Keep your portfolio and resume ready."
+          ></textarea>
+        </div>
+
+        <!-- Live Generated Schedule Preview Box -->
+        <div class="schedule-preview-card mb-3">
+          <div class="schedule-preview-header">
+            <div>
+              <strong>🗓️ Live Schedule Timeline Preview</strong>
+              <span class="preview-sub" id="previewTimeSpan">0 slots generated</span>
+            </div>
+            <span class="preview-badge-pill" id="previewModeBadge">⏱️ Staggered Consecutive</span>
+          </div>
+          <div id="schedulePreviewList" class="schedule-preview-items">
+            <!-- Dynamically calculated time slots -->
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="cancelBulkModalBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-glow" id="submitBulkScheduleBtn">
+            <span>Confirm & Schedule (<span id="submitCountTxt">0</span>) Interviews 🚀</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </DashboardLayout>
 
-<script>
-  // Simple client-side sorting for AI Match score
+<!-- Client-side Interactive Filter & Sorting Logic -->
+<script is:inline>
   document.addEventListener('DOMContentLoaded', () => {
-    const table = document.getElementById('applications-table');
-    if (!table) return;
-    
-    const thead = table.querySelector('thead');
-    const tbody = table.querySelector('tbody');
-    if (!thead || !tbody) return;
-    
-    const ths = thead.querySelectorAll('th');
-    if (ths.length < 3) return;
-    
-    const sortBtn = ths[2]; // AI Match header
-    let sortDesc = true;
-    
-    sortBtn.addEventListener('click', () => {
-      const rows = Array.from(tbody.querySelectorAll('tr'));
-      
-      rows.sort((a, b) => {
-        const scoreA = parseInt(a.getAttribute('data-score') || '0', 10);
-        const scoreB = parseInt(b.getAttribute('data-score') || '0', 10);
-        return sortDesc ? scoreB - scoreA : scoreA - scoreB;
-      });
-      
-      sortDesc = !sortDesc;
-      sortBtn.textContent = `AI Match ${sortDesc ? '⬇️' : '⬆️'}`;
-      
-      rows.forEach(r => tbody.appendChild(r));
-    });
+    const searchInput = document.getElementById('applicantSearchInput');
+    const roleSelect = document.getElementById('filterRoleSelect');
+    const sortSelect = document.getElementById('sortSelect');
+    const resetBtn = document.getElementById('resetFiltersBtn');
+    const visibleCountEl = document.getElementById('visibleAppsCount');
+    const tbody = document.getElementById('applicationsTbody');
+    const noMatchesMsg = document.getElementById('noMatchesMsg');
 
-    // Handle recalculating AI Match button
-    const recalcBtns = document.querySelectorAll('.btn-recalculate');
-    recalcBtns.forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const appId = btn.getAttribute('data-id');
-        if (!appId) return;
+    if (!tbody) return;
 
-        btn.classList.add('spinning');
-        try {
-          const res = await fetch('/api/employer/recalculate-match', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ applicationId: appId })
-          });
-          const data = await res.json();
-          if (res.ok && data.success) {
-            // @ts-ignore
-            if (window.showToast) window.showToast('AI Match Score calculated successfully!');
-            window.location.reload();
-          } else {
-            // @ts-ignore
-            if (window.showToast) window.showToast(data.error || 'Failed to calculate match score', 'error');
-          }
-        } catch (err) {
-          // @ts-ignore
-          if (window.showToast) window.showToast('Network error while calculating match', 'error');
-        } finally {
-          btn.classList.remove('spinning');
+    const allRows = Array.from(tbody.querySelectorAll('.app-row'));
+
+    // Apply filtering and sorting dynamically
+    function updateList() {
+      const q = (searchInput?.value || '').toLowerCase().trim();
+      const selectedRole = roleSelect?.value || 'all';
+      const selectedSort = sortSelect?.value || 'date-desc';
+
+      let visibleRows = [];
+
+      allRows.forEach(row => {
+        const name = row.getAttribute('data-name') || '';
+        const email = row.getAttribute('data-email') || '';
+        const role = row.getAttribute('data-job-title') || '';
+        const jobId = row.getAttribute('data-job-id') || '';
+
+        // 1. Text Search Filter
+        const matchesSearch = !q || name.includes(q) || email.includes(q) || role.includes(q);
+
+        // 2. Role Filter
+        const matchesRole = selectedRole === 'all' || jobId === selectedRole;
+
+        if (matchesSearch && matchesRole) {
+          row.style.display = '';
+          visibleRows.push(row);
+        } else {
+          row.style.display = 'none';
         }
       });
+
+      // Sort visible rows
+      visibleRows.sort((a, b) => {
+        const dateA = parseInt(a.getAttribute('data-date-ts') || '0', 10);
+        const dateB = parseInt(b.getAttribute('data-date-ts') || '0', 10);
+        const nameA = a.getAttribute('data-name') || '';
+        const nameB = b.getAttribute('data-name') || '';
+
+        switch (selectedSort) {
+          case 'date-desc':
+            return dateB - dateA;
+          case 'date-asc':
+            return dateA - dateB;
+          case 'name-asc':
+            return nameA.localeCompare(nameB);
+          case 'name-desc':
+            return nameB.localeCompare(nameA);
+          default:
+            return dateB - dateA;
+        }
+      });
+
+      // Re-append sorted rows into tbody
+      visibleRows.forEach(r => tbody.appendChild(r));
+
+      // Update counter & empty state
+      if (visibleCountEl) visibleCountEl.textContent = visibleRows.length;
+      if (noMatchesMsg) {
+        noMatchesMsg.style.display = visibleRows.length === 0 && allRows.length > 0 ? 'block' : 'none';
+      }
+    }
+
+    // Attach listeners
+    searchInput?.addEventListener('input', updateList);
+    roleSelect?.addEventListener('change', updateList);
+    sortSelect?.addEventListener('change', updateList);
+
+    // Header click sorting
+    const tableHeaderCols = document.querySelectorAll('th[data-sort-col]');
+    tableHeaderCols.forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.getAttribute('data-sort-col');
+        if (col === 'date') {
+          sortSelect.value = sortSelect.value === 'date-desc' ? 'date-asc' : 'date-desc';
+        } else if (col === 'name') {
+          sortSelect.value = sortSelect.value === 'name-asc' ? 'name-desc' : 'name-asc';
+        }
+        updateList();
+      });
     });
+
+    // Reset filters
+    resetBtn?.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      if (roleSelect) roleSelect.value = 'all';
+      if (sortSelect) sortSelect.value = 'date-desc';
+      updateList();
+    });
+
+    // -------------------------------------------------------------
+    // BULK SELECTION & INTERVIEW SCHEDULING LOGIC
+    // -------------------------------------------------------------
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const bulkSelectVisibleBtn = document.getElementById('bulkSelectVisibleBtn');
+    const bulkActionBar = document.getElementById('bulkActionBar');
+    const selectedAppsCountEl = document.getElementById('selectedAppsCount');
+    const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+    const openBulkScheduleModalBtn = document.getElementById('openBulkScheduleModalBtn');
+    const bulkScheduleModal = document.getElementById('bulkScheduleModal');
+    const closeBulkModalBtn = document.getElementById('closeBulkModalBtn');
+    const cancelBulkModalBtn = document.getElementById('cancelBulkModalBtn');
+    const bulkScheduleForm = document.getElementById('bulkScheduleForm');
+    const modalSelectedCountEl = document.getElementById('modalSelectedCount');
+    const submitCountTxtEl = document.getElementById('submitCountTxt');
+    const selectedCandidatesChipsEl = document.getElementById('selectedCandidatesChips');
+    const schedulePreviewListEl = document.getElementById('schedulePreviewList');
+    const previewTimeSpanEl = document.getElementById('previewTimeSpan');
+    const previewModeBadgeEl = document.getElementById('previewModeBadge');
+    const selectFilteredCountEl = document.getElementById('selectFilteredCount');
+
+    // Inputs inside modal
+    const bulkFormStartAt = document.getElementById('bulkFormStartAt');
+    const bulkFormDuration = document.getElementById('bulkFormDuration');
+    const bulkFormBuffer = document.getElementById('bulkFormBuffer');
+    const bufferSelectGroup = document.getElementById('bufferSelectGroup');
+    const strategyCardStaggered = document.getElementById('strategyCardStaggered');
+    const strategyCardGroup = document.getElementById('strategyCardGroup');
+    const slotModeRadios = document.querySelectorAll('input[name="bulkSlotMode"]');
+
+    // Default start time to tomorrow at 10:00 AM
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(10, 0, 0, 0);
+    const localIsoString = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    if (bulkFormStartAt) bulkFormStartAt.value = localIsoString;
+
+    // Track selected candidates: id -> { id, name, email, job }
+    const selectedCandidates = new Map();
+
+    function updateBulkBar() {
+      const count = selectedCandidates.size;
+      if (selectedAppsCountEl) selectedAppsCountEl.textContent = count;
+      if (modalSelectedCountEl) modalSelectedCountEl.textContent = count;
+      if (submitCountTxtEl) submitCountTxtEl.textContent = count;
+
+      const isModalOpen = bulkScheduleModal && bulkScheduleModal.style.display !== 'none';
+      if (count > 0 && !isModalOpen) {
+        if (bulkActionBar) bulkActionBar.style.display = 'flex';
+      } else {
+        if (bulkActionBar) bulkActionBar.style.display = 'none';
+      }
+
+      // Sync select-all checkbox state based on visible rows
+      const visibleCheckboxes = allRows.filter(r => r.style.display !== 'none').map(r => r.querySelector('.app-row-checkbox'));
+      const allVisibleChecked = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb && cb.checked);
+      const someVisibleChecked = visibleCheckboxes.some(cb => cb && cb.checked);
+      if (selectAllCheckbox) {
+        selectAllCheckbox.checked = allVisibleChecked;
+        selectAllCheckbox.indeterminate = someVisibleChecked && !allVisibleChecked;
+      }
+    }
+
+    // Row Checkbox Listeners
+    tbody.querySelectorAll('.app-row-checkbox').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const id = cb.getAttribute('data-id');
+        const name = cb.getAttribute('data-name');
+        const email = cb.getAttribute('data-email');
+        const job = cb.getAttribute('data-job');
+
+        if (cb.checked) {
+          selectedCandidates.set(id, { id, name, email, job });
+        } else {
+          selectedCandidates.delete(id);
+        }
+        updateBulkBar();
+      });
+    });
+
+    // Master Select All visible checkbox
+    selectAllCheckbox?.addEventListener('change', () => {
+      const isChecked = selectAllCheckbox.checked;
+      allRows.forEach(row => {
+        if (row.style.display !== 'none') {
+          const cb = row.querySelector('.app-row-checkbox');
+          if (cb) {
+            cb.checked = isChecked;
+            const id = cb.getAttribute('data-id');
+            const name = cb.getAttribute('data-name');
+            const email = cb.getAttribute('data-email');
+            const job = cb.getAttribute('data-job');
+            if (isChecked) {
+              selectedCandidates.set(id, { id, name, email, job });
+            } else {
+              selectedCandidates.delete(id);
+            }
+          }
+        }
+      });
+      updateBulkBar();
+    });
+
+    // Toolbar "Select Filtered" button
+    bulkSelectVisibleBtn?.addEventListener('click', () => {
+      const visibleRows = allRows.filter(r => r.style.display !== 'none');
+      const allChecked = visibleRows.every(r => {
+        const cb = r.querySelector('.app-row-checkbox');
+        return cb && cb.checked;
+      });
+
+      const targetChecked = !allChecked;
+      visibleRows.forEach(row => {
+        const cb = row.querySelector('.app-row-checkbox');
+        if (cb) {
+          cb.checked = targetChecked;
+          const id = cb.getAttribute('data-id');
+          const name = cb.getAttribute('data-name');
+          const email = cb.getAttribute('data-email');
+          const job = cb.getAttribute('data-job');
+          if (targetChecked) {
+            selectedCandidates.set(id, { id, name, email, job });
+          } else {
+            selectedCandidates.delete(id);
+          }
+        }
+      });
+      updateBulkBar();
+    });
+
+    // Clear Selection Button
+    clearSelectionBtn?.addEventListener('click', () => {
+      selectedCandidates.clear();
+      tbody.querySelectorAll('.app-row-checkbox').forEach(cb => { cb.checked = false; });
+      if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+      }
+      updateBulkBar();
+    });
+
+    // Open & Close Modal
+    function openBulkModal() {
+      if (selectedCandidates.size === 0) return;
+
+      // Populate student preview chips
+      if (selectedCandidatesChipsEl) {
+        selectedCandidatesChipsEl.innerHTML = '';
+        selectedCandidates.forEach(cand => {
+          const chip = document.createElement('div');
+          chip.className = 'candidate-chip';
+          chip.innerHTML = `
+            <span class="chip-avatar">${(cand.name?.[0] || 'C').toUpperCase()}</span>
+            <span class="chip-name">${cand.name}</span>
+            <span class="chip-job">${cand.job}</span>
+            <button type="button" class="chip-remove-btn" title="Remove from this batch" data-id="${cand.id}">✕</button>
+          `;
+          chip.querySelector('.chip-remove-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = cand.id;
+            selectedCandidates.delete(id);
+            const cb = tbody.querySelector(`.app-row-checkbox[data-id="${id}"]`);
+            if (cb) cb.checked = false;
+            updateBulkBar();
+            openBulkModal();
+          });
+          selectedCandidatesChipsEl.appendChild(chip);
+        });
+      }
+
+      updateSchedulePreview();
+      if (bulkScheduleModal) bulkScheduleModal.style.display = 'flex';
+      if (bulkActionBar) bulkActionBar.style.display = 'none';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeBulkModal() {
+      if (bulkScheduleModal) bulkScheduleModal.style.display = 'none';
+      if (selectedCandidates.size > 0 && bulkActionBar) {
+        bulkActionBar.style.display = 'flex';
+      }
+      document.body.style.overflow = '';
+    }
+
+    openBulkScheduleModalBtn?.addEventListener('click', openBulkModal);
+    closeBulkModalBtn?.addEventListener('click', closeBulkModal);
+    cancelBulkModalBtn?.addEventListener('click', closeBulkModal);
+    bulkScheduleModal?.addEventListener('click', (e) => {
+      if (e.target === bulkScheduleModal) closeBulkModal();
+    });
+
+    // Mode Toggle (Staggered vs Group)
+    slotModeRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        const mode = radio.value;
+        if (mode === 'group') {
+          if (bufferSelectGroup) bufferSelectGroup.style.display = 'none';
+          strategyCardGroup?.classList.add('active');
+          strategyCardStaggered?.classList.remove('active');
+        } else {
+          if (bufferSelectGroup) bufferSelectGroup.style.display = 'block';
+          strategyCardStaggered?.classList.add('active');
+          strategyCardGroup?.classList.remove('active');
+        }
+        updateSchedulePreview();
+      });
+    });
+
+    bulkFormStartAt?.addEventListener('input', updateSchedulePreview);
+    bulkFormDuration?.addEventListener('change', updateSchedulePreview);
+    bulkFormBuffer?.addEventListener('change', updateSchedulePreview);
+
+    // Live Schedule Timeline Preview Generator
+    function updateSchedulePreview() {
+      if (!schedulePreviewListEl) return;
+      schedulePreviewListEl.innerHTML = '';
+
+      const candidatesArr = Array.from(selectedCandidates.values());
+      if (candidatesArr.length === 0) {
+        closeBulkModal();
+        return;
+      }
+
+      const startVal = bulkFormStartAt?.value;
+      const startDate = startVal ? new Date(startVal) : new Date();
+      const durationMin = parseInt(bulkFormDuration?.value || '30', 10);
+      const bufferMin = parseInt(bulkFormBuffer?.value || '5', 10);
+      const activeMode = document.querySelector('input[name="bulkSlotMode"]:checked')?.value || 'staggered';
+
+      if (previewModeBadgeEl) {
+        previewModeBadgeEl.textContent = activeMode === 'staggered' ? '⏱️ Staggered Consecutive' : '👥 Group Session';
+      }
+
+      const stepMs = (durationMin + bufferMin) * 60 * 1000;
+      let lastEndTime = new Date(startDate.getTime() + durationMin * 60 * 1000);
+
+      candidatesArr.forEach((cand, idx) => {
+        const slotStart = activeMode === 'group'
+          ? new Date(startDate.getTime())
+          : new Date(startDate.getTime() + idx * stepMs);
+        const slotEnd = new Date(slotStart.getTime() + durationMin * 60 * 1000);
+        if (slotEnd > lastEndTime) lastEndTime = slotEnd;
+
+        const timeFormat = { hour: '2-digit', minute: '2-digit' };
+        const slotStr = `${slotStart.toLocaleTimeString([], timeFormat)} – ${slotEnd.toLocaleTimeString([], timeFormat)}`;
+        const dateStr = slotStart.toLocaleDateString([], { month: 'short', day: 'numeric', weekday: 'short' });
+
+        const item = document.createElement('div');
+        item.className = 'schedule-preview-item';
+        item.innerHTML = `
+          <div class="preview-item-left">
+            <span class="preview-slot-idx">#${idx + 1}</span>
+            <div class="preview-cand-info">
+              <strong class="preview-cand-name">${cand.name}</strong>
+              <span class="preview-cand-job">💼 ${cand.job}</span>
+            </div>
+          </div>
+          <div class="preview-item-right">
+            <span class="preview-slot-time">📅 ${dateStr}, ${slotStr}</span>
+            <span class="preview-slot-dur">${durationMin} min slot</span>
+          </div>
+        `;
+        schedulePreviewListEl.appendChild(item);
+      });
+
+      if (previewTimeSpanEl) {
+        if (activeMode === 'group') {
+          previewTimeSpanEl.textContent = `${candidatesArr.length} candidates together at ${startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+          const totalMinutes = (lastEndTime.getTime() - startDate.getTime()) / (60 * 1000);
+          previewTimeSpanEl.textContent = `${candidatesArr.length} slots from ${startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${lastEndTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (~${Math.round(totalMinutes)} mins)`;
+        }
+      }
+    }
+
+    // Submit Bulk Scheduling Form
+    bulkScheduleForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const candidateIds = Array.from(selectedCandidates.keys());
+      if (candidateIds.length === 0) {
+        alert('Please select at least one candidate.');
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBulkScheduleBtn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Scheduling & Notifying Candidates... ⏳</span>';
+      }
+
+      try {
+        const payload = {
+          applicationIds: candidateIds,
+          title: document.getElementById('bulkFormTitle')?.value || 'Technical Screening',
+          interviewType: document.getElementById('bulkFormType')?.value || 'video',
+          meetingLink: document.getElementById('bulkFormMeetingLink')?.value || '',
+          startAt: bulkFormStartAt?.value,
+          durationMinutes: parseInt(bulkFormDuration?.value || '30', 10),
+          slotMode: document.querySelector('input[name="bulkSlotMode"]:checked')?.value || 'staggered',
+          bufferMinutes: parseInt(bulkFormBuffer?.value || '5', 10),
+          interviewerNames: document.getElementById('bulkFormInterviewer')?.value || '',
+          notes: document.getElementById('bulkFormNotes')?.value || '',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        };
+
+        const res = await fetch('/api/interviews/bulk-schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`🎉 Success! Scheduled ${data.count} candidate interviews.\n\nEach student has received an interview notification with their specific time slot in their portal notifications section.`);
+          window.location.href = '/employer/interviews';
+        } else {
+          alert(data.error || 'Failed to schedule bulk interviews. Please check your selections and try again.');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<span>Confirm & Schedule (${candidateIds.length}) Interviews 🚀</span>`;
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error while scheduling interviews. Please try again.');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<span>Confirm & Schedule (${candidateIds.length}) Interviews 🚀</span>`;
+        }
+      }
+    });
+
+    // Initial run to respect initial values
+    updateList();
   });
 </script>
 
@@ -313,13 +971,6 @@ const getTabUrl = (status?: string) => {
     color: var(--color-text-muted);
   }
 
-  .btn-header-ai {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    text-decoration: none;
-    font-weight: 700;
-  }
 
   .active-filter-banner {
     display: flex;
@@ -349,6 +1000,7 @@ const getTabUrl = (status?: string) => {
   }
   .clear-filter-btn:hover { text-decoration: underline; }
 
+  /* Filter Tabs */
   .filter-tabs {
     display: flex;
     gap: 0.5rem;
@@ -356,7 +1008,10 @@ const getTabUrl = (status?: string) => {
   }
 
   .tab-pill {
-    padding: 0.55rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
     border-radius: 9999px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -365,53 +1020,175 @@ const getTabUrl = (status?: string) => {
     font-weight: 600;
     text-decoration: none;
     transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
   }
   .tab-pill:hover {
     border-color: var(--color-primary);
-    color: var(--color-text-main);
+    color: var(--color-primary);
   }
   .tab-pill.active {
     background: var(--color-primary);
-    color: white;
     border-color: var(--color-primary);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-  }
-  .tab-pill.active .tab-count {
-    background: rgba(255, 255, 255, 0.25);
     color: white;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
   }
-
   .tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.15rem 0.45rem;
     border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.2);
+    font-size: 0.75rem;
+  }
+  .tab-pill:not(.active) .tab-count {
     background: var(--color-bg);
     color: var(--color-text-muted);
-    font-size: 0.75rem;
+  }
+
+  /* Controls Toolbar Card */
+  .controls-toolbar-card {
+    background: var(--color-surface, #FFFFFF);
+    border: 1px solid var(--color-border, #E2E8F0);
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .controls-row {
+    display: grid;
+    grid-template-columns: 2fr 1.2fr 1.2fr;
+    gap: 0.85rem;
+    align-items: flex-start;
+  }
+
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  .control-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted, #64748B);
+    height: 16px;
+    line-height: 16px;
+  }
+
+  .search-input-box,
+  .control-select {
+    height: 42px;
+    min-height: 42px;
+    box-sizing: border-box;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    width: 100%;
+  }
+
+  .search-input-box {
+    display: flex;
+    align-items: center;
+    background: var(--color-bg, #F8FAFC);
+    border: 1px solid var(--color-border, #CBD5E1);
+    padding: 0 0.85rem;
+    transition: all 0.2s ease;
+  }
+  .search-input-box:focus-within {
+    border-color: var(--color-primary, #6366F1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+
+  .control-icon {
+    font-size: 1rem;
+    opacity: 0.6;
+    margin-right: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .control-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 0.88rem;
+    color: var(--color-text-main, #0F172A);
+    outline: none;
+    font-family: inherit;
+  }
+  .control-input::placeholder {
+    color: var(--color-text-muted, #94A3B8);
+  }
+
+  .control-select {
+    padding: 0 1.8rem 0 0.85rem;
+    border: 1px solid var(--color-border, #CBD5E1);
+    background-color: var(--color-bg, #F8FAFC);
+    color: var(--color-text-main, #0F172A);
+    outline: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    font-family: inherit;
+  }
+  .control-select:focus {
+    border-color: var(--color-primary, #6366F1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+
+  .sort-select {
+    font-weight: 600;
+    background-color: rgba(99, 102, 241, 0.04);
+  }
+
+  .toolbar-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--color-border, #E2E8F0);
+    font-size: 0.85rem;
+  }
+
+  .results-count-txt {
+    color: var(--color-text-muted, #64748B);
+  }
+  .results-count-txt strong {
+    color: var(--color-primary, #6366F1);
     font-weight: 700;
   }
 
-  .empty-state {
-    padding: 5rem 2rem;
-    text-align: center;
-    background: var(--color-surface);
-    backdrop-filter: blur(16px);
-    border-radius: var(--border-radius-lg);
-    border: 1px solid var(--color-border);
+  .btn-reset-toolbar {
+    background: none;
+    border: none;
+    color: var(--color-primary, #6366F1);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    transition: background 0.15s ease;
   }
-  .empty-icon { font-size: 3rem; margin-bottom: 0.75rem; }
-  .empty-state h3 { margin: 0 0 0.5rem 0; font-size: 1.3rem; }
-  .empty-state p { color: var(--color-text-muted); margin: 0; }
+  .btn-reset-toolbar:hover {
+    background: rgba(99, 102, 241, 0.08);
+    text-decoration: underline;
+  }
 
+  /* Table & Layout */
   .table-responsive {
-    overflow-x: auto;
     background: var(--color-surface);
     backdrop-filter: blur(16px);
-    border-radius: var(--border-radius-lg);
     border: 1px solid var(--color-border);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    overflow-x: auto;
   }
 
   .data-table {
@@ -421,24 +1198,25 @@ const getTabUrl = (status?: string) => {
   }
 
   .data-table th {
-    padding: 1.1rem 1.5rem;
+    padding: 1rem 1.25rem;
     font-weight: 700;
     color: var(--color-text-muted);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--color-border);
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(248, 250, 252, 0.6);
+    white-space: nowrap;
   }
 
   .data-table td {
-    padding: 1.15rem 1.5rem;
+    padding: 1.1rem 1.25rem;
     border-bottom: 1px solid var(--color-border);
     vertical-align: middle;
   }
 
   .app-row:hover {
-    background: rgba(99, 102, 241, 0.03);
+    background: rgba(99, 102, 241, 0.02);
   }
 
   .applicant-cell {
@@ -448,16 +1226,16 @@ const getTabUrl = (status?: string) => {
   }
 
   .applicant-avatar {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
     color: white;
-    font-weight: 800;
-    font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
     flex-shrink: 0;
   }
 
@@ -465,32 +1243,29 @@ const getTabUrl = (status?: string) => {
     display: block;
     font-size: 0.95rem;
     color: var(--color-text-main);
+    font-weight: 700;
   }
 
   .applicant-email {
-    font-size: 0.78rem;
+    display: block;
+    font-size: 0.8rem;
     color: var(--color-text-muted);
   }
 
   .job-role-text {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     font-weight: 600;
     color: var(--color-text-main);
   }
 
-  .mobile-badges-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
   .match-score-pill {
-    padding: 0.25rem 0.65rem;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
     border-radius: 9999px;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 700;
-    display: inline-block;
+    white-space: nowrap;
   }
 
   .match-calc-wrap {
@@ -500,38 +1275,38 @@ const getTabUrl = (status?: string) => {
   }
 
   .badge-na {
-    padding: 0.2rem 0.5rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 6px;
     background: var(--color-bg);
     border: 1px solid var(--color-border);
-    border-radius: 6px;
-    font-size: 0.75rem;
     color: var(--color-text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
   }
 
   .status-pill {
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.72rem;
-    font-weight: 700;
     display: inline-block;
+    padding: 0.3rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
   }
-  .status-received { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
-  .status-under_review { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
-  .status-shortlisted { background: rgba(250, 204, 21, 0.15); color: #ca8a04; border: 1px solid rgba(250, 204, 21, 0.3); }
-  .status-accepted { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
-  .status-rejected { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .status-received { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+  .status-under_review { background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+  .status-shortlisted { background: rgba(234, 179, 8, 0.12); color: #ca8a04; border: 1px solid rgba(234, 179, 8, 0.3); }
+  .status-accepted { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+  .status-rejected { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
 
-  .mobile-only-status {
-    display: none;
-  }
-
-  .mobile-footer-line {
-    display: none;
-  }
+  .mobile-only-status { display: none; }
+  .desktop-status-pill { display: inline-block; }
 
   .date-text {
     font-size: 0.85rem;
     color: var(--color-text-muted);
+    white-space: nowrap;
   }
 
   .col-actions {
@@ -563,14 +1338,19 @@ const getTabUrl = (status?: string) => {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border-radius: 8px;
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     transition: all 0.2s ease;
     text-decoration: none;
     flex-shrink: 0;
+    color: var(--color-text-main);
+  }
+  .btn-action-icon svg {
+    width: 18px !important;
+    height: 18px !important;
   }
   .btn-action-icon:hover {
     background: var(--color-primary);
@@ -597,162 +1377,593 @@ const getTabUrl = (status?: string) => {
     border-color: var(--color-primary);
   }
 
-  /* Responsive Mobile Layout Overhaul */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 1.5rem;
+    text-align: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+  }
+  .empty-icon { font-size: 3rem; margin-bottom: 0.5rem; }
+  .empty-state h3 { margin: 0 0 0.5rem 0; color: var(--color-text-main); }
+  .empty-state p { margin: 0; color: var(--color-text-muted); }
+
+  @media (max-width: 900px) {
+    .controls-row {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 600px) {
+    .controls-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Toolbar right buttons */
+  .toolbar-right-btns {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn-select-all-toolbar {
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    color: var(--color-primary, #6366f1);
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-select-all-toolbar:hover {
+    background: var(--color-primary, #6366f1);
+    color: #ffffff;
+  }
+
+  /* Custom Checkbox */
+  .app-custom-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--color-primary, #6366f1);
+    border-radius: 4px;
+  }
+
+  /* Floating Bulk Action Bar */
+  .bulk-action-floating-bar {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: #ffffff;
+    padding: 0.65rem 1.25rem;
+    border-radius: 9999px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 10001;
+    animation: slideUpFloating 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: 90vw;
+  }
+  @keyframes slideUpFloating {
+    from {
+      transform: translate(-50%, 30px);
+      opacity: 0;
+    }
+    to {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+  }
+  .bulk-floating-content {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    white-space: nowrap;
+  }
+  .bulk-count-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .bulk-counter-txt {
+    white-space: nowrap;
+  }
+  .bulk-badge-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+    flex-shrink: 0;
+  }
+  .bulk-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .btn-ghost-light {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e2e8f0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-ghost-light:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+  .btn-text-short {
+    display: none;
+  }
+  .btn-text-full {
+    display: inline;
+  }
+
   @media (max-width: 768px) {
-    .header-content {
-      flex-direction: column !important;
-      align-items: flex-start !important;
-      gap: 0.85rem !important;
+    .bulk-action-floating-bar {
+      bottom: calc(65px + env(safe-area-inset-bottom, 0px) + 0.65rem);
+      width: calc(100% - 1.5rem);
+      max-width: 440px;
+      padding: 0.5rem 0.75rem;
+      border-radius: 16px;
     }
-    .header-content h1 {
-      font-size: 1.35rem !important;
+    .bulk-floating-content {
+      justify-content: space-between;
+      gap: 0.5rem;
+      width: 100%;
     }
-    .btn-header-ai {
-      width: 100% !important;
-      justify-content: center !important;
-      text-align: center !important;
-      padding: 0.6rem 1rem !important;
-      font-size: 0.85rem !important;
+    .bulk-count-pill {
+      font-size: 0.8rem;
     }
+    .txt-long-selected {
+      display: none;
+    }
+    .btn-text-full {
+      display: none;
+    }
+    .btn-text-short {
+      display: inline;
+    }
+    .bulk-actions-group {
+      gap: 0.4rem;
+    }
+    .bulk-actions-group .btn {
+      padding: 0.4rem 0.65rem;
+      font-size: 0.78rem;
+    }
+  }
 
-    .filter-tabs {
-      display: flex !important;
-      overflow-x: auto !important;
-      flex-wrap: nowrap !important;
-      gap: 0.4rem !important;
-      padding-bottom: 0.4rem !important;
-      touch-action: pan-x !important;
-      -webkit-overflow-scrolling: touch !important;
-      scrollbar-width: none !important;
-    }
-    .filter-tabs::-webkit-scrollbar {
-      display: none !important;
-    }
-    .tab-pill {
-      white-space: nowrap !important;
-      flex-shrink: 0 !important;
-      font-size: 0.78rem !important;
-      padding: 0.45rem 0.75rem !important;
-    }
+  /* Modal Backdrop & Modern Bulk Modal */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100000;
+    padding: 1rem;
+    overflow-y: auto;
+  }
+  .modern-bulk-modal {
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text-main, #0f172a);
+    width: 100%;
+    max-width: 760px;
+    max-height: 92vh;
+    border-radius: 20px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--color-border, #e2e8f0);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modalScale 0.25s ease-out;
+  }
+  @keyframes modalScale {
+    from { transform: scale(0.96); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
 
-    .table-responsive {
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      overflow: visible !important;
-    }
+  .modal-header {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 1.25rem 1.75rem 1rem 1.75rem;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+  }
+  .modal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--color-primary, #6366f1);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    margin-bottom: 0.4rem;
+  }
+  .dot-pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-primary, #6366f1);
+  }
+  .modal-title {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+  }
+  .modal-subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-text-muted, #64748b);
+  }
+  .modal-close {
+    background: var(--color-bg, #f1f5f9);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--color-text-muted, #64748b);
+    transition: all 0.2s ease;
+  }
+  .modal-close:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+  }
 
-    .data-table,
-    .data-table thead,
-    .data-table tbody {
-      display: block !important;
-      width: 100% !important;
-      box-sizing: border-box !important;
-    }
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem 1.75rem 1.5rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
 
-    .data-table thead {
-      display: none !important;
-    }
+  /* Candidate Chips Wrap */
+  .selected-candidates-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+  }
+  .selected-candidates-chips-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 0.65rem;
+    background: var(--color-bg, #f8fafc);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 12px;
+  }
+  .candidate-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #cbd5e1);
+    padding: 0.25rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+  .chip-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary, #6366f1);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+  }
+  .chip-name { font-weight: 700; }
+  .chip-job { color: var(--color-text-muted, #64748b); font-size: 0.75rem; }
+  .chip-remove-btn {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0 0 0 2px;
+  }
+  .chip-remove-btn:hover { color: #ef4444; }
 
-    .app-row {
-      background: var(--color-surface) !important;
-      backdrop-filter: blur(16px) !important;
-      border: 1px solid var(--color-border) !important;
-      border-radius: var(--border-radius-md) !important;
-      padding: 1.15rem 1rem !important;
-      margin-bottom: 1rem !important;
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 0.65rem !important;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
-    }
+  /* Form Elements */
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.25rem;
+    align-items: start;
+  }
+  @media (max-width: 650px) {
+    .form-grid-2 { grid-template-columns: 1fr; }
+  }
 
-    .data-table td {
-      padding: 0 !important;
-      border: none !important;
-    }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .form-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.83rem;
+    font-weight: 700;
+    color: var(--color-text-main, #0f172a);
+    min-height: 22px;
+    margin-bottom: 0;
+  }
+  .label-text {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .label-hint {
+    font-size: 0.74rem;
+    font-weight: 400;
+    color: var(--color-text-muted, #64748b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-left: 0.5rem;
+  }
+  .label-optional {
+    font-size: 0.74rem;
+    font-weight: 400;
+    color: var(--color-text-muted, #94a3b8);
+    margin-left: 4px;
+  }
+  .required {
+    color: #ef4444;
+    font-weight: 800;
+    margin-left: 3px;
+    display: inline-block;
+  }
 
-    .applicant-cell {
-      gap: 0.75rem !important;
-    }
-    .applicant-name {
-      font-size: 0.95rem !important;
-      word-break: break-word !important;
-    }
-    .applicant-email {
-      font-size: 0.78rem !important;
-      word-break: break-all !important;
-    }
+  .form-input, .form-select {
+    width: 100%;
+    height: 42px;
+    min-height: 42px;
+    max-height: 42px;
+    box-sizing: border-box;
+    padding: 0 0.85rem;
+    border: 1px solid var(--color-border, #cbd5e1);
+    background: var(--color-bg, #f8fafc);
+    color: var(--color-text-main, #0f172a);
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+  }
+  .form-select {
+    padding-right: 2rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .form-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--color-border, #cbd5e1);
+    background: var(--color-bg, #f8fafc);
+    color: var(--color-text-main, #0f172a);
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    resize: vertical;
+    min-height: 64px;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: var(--color-primary, #6366f1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
 
-    .col-role {
-      font-size: 0.9rem !important;
-      font-weight: 700 !important;
-      color: var(--color-primary) !important;
-    }
+  /* Strategy Options Grid */
+  .strategy-radios-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+  }
+  @media (max-width: 650px) {
+    .strategy-radios-grid { grid-template-columns: 1fr; }
+  }
+  .strategy-option-card {
+    border: 1px solid var(--color-border, #cbd5e1);
+    border-radius: 12px;
+    padding: 0.85rem;
+    cursor: pointer;
+    background: var(--color-bg, #f8fafc);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+  .strategy-option-card input[type="radio"] {
+    margin-top: 0.2rem;
+    accent-color: var(--color-primary, #6366f1);
+  }
+  .strategy-option-card.active, .strategy-option-card:hover {
+    border-color: var(--color-primary, #6366f1);
+    background: rgba(99, 102, 241, 0.04);
+  }
+  .strategy-card-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .strategy-icon { font-size: 1.25rem; }
+  .strategy-card-inner strong { font-size: 0.88rem; color: var(--color-text-main); display: block; margin-bottom: 2px; }
+  .strategy-card-inner p { margin: 0; font-size: 0.76rem; color: var(--color-text-muted); line-height: 1.35; }
 
-    /* Wrap Match Pill & Status Pill in a clean horizontal flex row */
-    .mobile-badges-wrapper {
-      display: flex !important;
-      align-items: center !important;
-      gap: 0.5rem !important;
-      flex-wrap: wrap !important;
-      width: 100% !important;
-    }
+  /* Schedule Preview Card */
+  .schedule-preview-card {
+    background: var(--color-bg, #f8fafc);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 14px;
+    padding: 1rem;
+  }
+  .schedule-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    margin-bottom: 0.65rem;
+  }
+  .schedule-preview-header strong {
+    font-size: 0.88rem;
+    display: block;
+    color: var(--color-text-main);
+  }
+  .preview-sub {
+    font-size: 0.76rem;
+    color: var(--color-text-muted);
+  }
+  .preview-badge-pill {
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--color-primary, #6366f1);
+  }
+  .schedule-preview-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .schedule-preview-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--color-surface, #ffffff);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    font-size: 0.82rem;
+  }
+  .preview-item-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .preview-slot-idx {
+    font-weight: 800;
+    color: var(--color-primary, #6366f1);
+    font-size: 0.75rem;
+  }
+  .preview-cand-name { color: var(--color-text-main); }
+  .preview-cand-job { color: var(--color-text-muted); font-size: 0.75rem; margin-left: 4px; }
+  .preview-item-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .preview-slot-time {
+    font-weight: 600;
+    color: var(--color-text-main);
+  }
+  .preview-slot-dur {
+    font-size: 0.72rem;
+    background: rgba(34, 197, 94, 0.12);
+    color: #16a34a;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 9999px;
+  }
 
-    .col-match {
-      width: 100% !important;
-      display: block !important;
-    }
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+  }
 
-    .col-status {
-      display: none !important;
+  @media (max-width: 650px) {
+    .modal-backdrop {
+      padding: 0.5rem;
     }
-
-    .desktop-status-pill {
-      display: inline-block !important;
+    .modern-bulk-modal {
+      width: 100%;
+      max-height: 94vh;
+      border-radius: 16px;
     }
-
-    .data-table td.col-date {
-      display: none !important;
+    .modal-header {
+      padding: 1rem 1.15rem 0.75rem 1.15rem;
     }
-
-    .col-actions {
-      width: 100% !important;
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 0.65rem !important;
-      padding-top: 0.75rem !important;
-      border-top: 1px solid var(--color-border) !important;
-      margin-top: 0.25rem !important;
+    .modal-title {
+      font-size: 1.15rem;
+      line-height: 1.3;
     }
-
-    .mobile-footer-line {
-      display: flex !important;
-      justify-content: space-between !important;
-      align-items: center !important;
-      width: 100% !important;
+    .modal-subtitle {
+      font-size: 0.78rem;
     }
-
-    .mobile-date-val {
-      font-size: 0.8rem !important;
-      color: var(--color-text-muted) !important;
-      font-weight: 600 !important;
+    .modal-body {
+      padding: 0.85rem 1.15rem 1.25rem 1.15rem;
+      gap: 0.85rem;
     }
-
-    .actions {
-      width: 100% !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 0.5rem !important;
+    .modal-footer {
+      flex-direction: column-reverse;
+      gap: 0.5rem;
+      width: 100%;
+      padding-top: 0.75rem;
+      margin-top: 0.35rem;
     }
-
-    .btn-schedule, .btn-review {
-      flex: 1 !important;
-      text-align: center !important;
-      justify-content: center !important;
-      padding: 0.5rem 0.65rem !important;
-      font-size: 0.8rem !important;
-      white-space: nowrap !important;
+    .modal-footer button {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
     }
   }
 </style>

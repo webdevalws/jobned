@@ -100,29 +100,6 @@ const portfolioUrl = customData.portfolioUrl || app.applicantPortfolio;
           </div>
         </div>
 
-        {app.aiScore !== null && (
-          <div class="ai-hero-card mt-4">
-            <div class="ai-hero-header">
-              <div class="ai-title-wrap">
-                <div class="ai-icon-pulse">✨</div>
-                <div>
-                  <h4 class="ai-heading">AI Match & Fit Analysis</h4>
-                  <span class="ai-sub">Powered by Semantic Vector Screening</span>
-                </div>
-              </div>
-              <div class="ai-score-pill" style={`background: ${app.aiScore >= 80 ? 'rgba(16, 185, 129, 0.15)' : app.aiScore >= 50 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)'}; color: ${app.aiScore >= 80 ? '#10B981' : app.aiScore >= 50 ? '#F59E0B' : '#EF4444'}; border: 1px solid ${app.aiScore >= 80 ? 'rgba(16, 185, 129, 0.3)' : app.aiScore >= 50 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'};`}>
-                <span class="score-number">{app.aiScore}%</span>
-                <span class="score-label">Fit Score</span>
-              </div>
-            </div>
-            {app.aiSummary && (
-              <div class="ai-analysis-content">
-                <p class="ai-analysis-paragraph">{app.aiSummary}</p>
-              </div>
-            )}
-          </div>
-        )}
-
         <div class="candidate-contact mt-5">
           <h4 class="section-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>

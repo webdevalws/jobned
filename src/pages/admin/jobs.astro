@@ -89,7 +89,7 @@ const allJobs = await db.select({
                     <span>🎯 {job.experienceLevel || 'Mid Level'}</span>
                   </div>
                 </td>
-                <td class="col-info">
+                <td class="col-company">
                   <div class="company-meta">
                     <strong class="company-name">{job.company || (job.employerName ? `${job.employerName} ${job.employerLastName || ''}`.trim() : 'Employer')}</strong>
                     <span class="employer-sub">{job.employerName ? `${job.employerName} ${job.employerLastName || ''}`.trim() : 'Recruiter'}</span>
@@ -494,12 +494,13 @@ const allJobs = await db.select({
       background: var(--color-surface) !important;
       backdrop-filter: blur(16px) !important;
       border: 1px solid var(--color-border) !important;
-      border-radius: var(--border-radius-md) !important;
+      border-radius: var(--border-radius-lg, 14px) !important;
       padding: 1.15rem 1rem !important;
       margin-bottom: 1rem !important;
       display: flex !important;
       flex-wrap: wrap !important;
-      gap: 0.75rem !important;
+      align-items: center !important;
+      gap: 0.65rem !important;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
     }
 
@@ -512,18 +513,45 @@ const allJobs = await db.select({
       width: 100% !important;
     }
 
+    .job-title-link {
+      word-break: break-word !important;
+    }
+
+    .job-sub-meta {
+      flex-wrap: wrap !important;
+      gap: 0.35rem 0.5rem !important;
+      margin-top: 0.35rem !important;
+      font-size: 0.8rem !important;
+    }
+
+    .col-company {
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+    }
+
+    .company-name {
+      word-break: break-word !important;
+    }
+
+    .col-date {
+      display: flex !important;
+      align-items: center !important;
+      flex: 0 0 auto !important;
+    }
+
+    .date-text {
+      font-size: 0.8rem !important;
+      color: var(--color-text-muted) !important;
+    }
+
     .col-status {
-      flex: 1 1 calc(50% - 0.375rem) !important;
+      flex: 1 1 calc(50% - 0.35rem) !important;
       min-width: 0 !important;
     }
 
     .col-apps {
-      flex: 1 1 calc(50% - 0.375rem) !important;
+      flex: 1 1 calc(50% - 0.35rem) !important;
       min-width: 0 !important;
-    }
-
-    .data-table td.col-date {
-      display: none !important;
     }
 
     .custom-select-wrap {
@@ -534,24 +562,24 @@ const allJobs = await db.select({
     .status-select {
       width: 100% !important;
       box-sizing: border-box !important;
-      height: 40px !important;
-      padding: 0.45rem 1.8rem 0.45rem 0.65rem !important;
-      border-radius: 10px !important;
-      font-size: 0.82rem !important;
+      height: 38px !important;
+      padding: 0.4rem 1.8rem 0.4rem 0.65rem !important;
+      border-radius: 8px !important;
+      font-size: 0.8rem !important;
       font-weight: 700 !important;
-      align-items: center !important;
     }
 
     .app-count-pill {
       width: 100% !important;
-      height: 40px !important;
+      height: 38px !important;
       display: flex !important;
       justify-content: space-between !important;
       align-items: center !important;
-      padding: 0.45rem 0.75rem !important;
-      border-radius: 10px !important;
+      padding: 0.4rem 0.75rem !important;
+      border-radius: 8px !important;
       box-sizing: border-box !important;
       gap: 0.25rem !important;
+      font-size: 0.8rem !important;
     }
 
     .col-actions {
@@ -562,6 +590,22 @@ const allJobs = await db.select({
       padding-top: 0.75rem !important;
       border-top: 1px solid var(--color-border) !important;
       margin-top: 0.25rem !important;
+    }
+
+    .col-actions .actions {
+      display: flex !important;
+      gap: 0.6rem !important;
+    }
+
+    .btn-action-icon {
+      width: 38px !important;
+      height: 38px !important;
+      border-radius: 10px !important;
+      font-size: 1rem !important;
+    }
+
+    .table-card {
+      margin-bottom: 2.5rem !important;
     }
   }
 </style>

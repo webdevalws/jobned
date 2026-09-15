@@ -64,13 +64,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
               'content-type': 'application/json'
             },
             body: JSON.stringify({
-              sender: { name: 'RecruitNest', email: 'prashantsinghstd@gmail.com' },
+              sender: { name: 'JobNed', email: 'prashantsinghstd@gmail.com' },
               to: [{ email }],
-              subject: 'Reset your RecruitNest password',
+              subject: 'Reset your JobNed password',
               htmlContent: `
                 <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
                   <h2 style="color: #10b981; margin-top: 0;">Password Reset Request</h2>
-                  <p>You requested a password reset for your RecruitNest account. Click the button below to set a new password. This link is valid for 15 minutes.</p>
+                  <p>You requested a password reset for your JobNed account. Click the button below to set a new password. This link is valid for 15 minutes.</p>
                   <div style="margin: 24px 0; text-align: center;">
                     <a href="${resetUrl}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; display: inline-block;">Reset Password</a>
                   </div>
@@ -121,13 +121,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         });
 
         await transporter.sendMail({
-          from: `RecruitNest <${gmailUser}>`,
+          from: `JobNed <${gmailUser}>`,
           to: email,
-          subject: 'Reset your RecruitNest password',
+          subject: 'Reset your JobNed password',
           html: `
             <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
               <h2 style="color: #10b981; margin-top: 0;">Password Reset Request</h2>
-              <p>You requested a password reset for your RecruitNest account. Click the button below to set a new password. This link is valid for 15 minutes.</p>
+              <p>You requested a password reset for your JobNed account. Click the button below to set a new password. This link is valid for 15 minutes.</p>
               <div style="margin: 24px 0; text-align: center;">
                 <a href="${resetUrl}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; display: inline-block;">Reset Password</a>
               </div>
@@ -182,13 +182,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            from: 'RecruitNest <onboarding@resend.dev>', // Default Resend domain
+            from: 'JobNed <onboarding@resend.dev>', // Default Resend domain
             to: email,
-            subject: 'Reset your RecruitNest password',
+            subject: 'Reset your JobNed password',
             html: `
               <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
                 <h2 style="color: #10b981; margin-top: 0;">Password Reset Request</h2>
-                <p>You requested a password reset for your RecruitNest account. Click the button below to set a new password. This link is valid for 15 minutes.</p>
+                <p>You requested a password reset for your JobNed account. Click the button below to set a new password. This link is valid for 15 minutes.</p>
                 <div style="margin: 24px 0; text-align: center;">
                   <a href="${resetUrl}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; display: inline-block;">Reset Password</a>
                 </div>

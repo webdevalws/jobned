@@ -1,15 +1,47 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Header from '../components/Header.astro';
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+import { getDb } from "../lib/db";
+import { plans } from "../db/schema";
+import { eq } from "drizzle-orm";
 
-const requestedType = Astro.url.searchParams.get('type');
-const requestedPlan = Astro.url.searchParams.get('plan');
+const requestedType = Astro.url.searchParams.get("type");
+const requestedPlan = Astro.url.searchParams.get("plan");
+const redirectParam = Astro.url.searchParams.get("redirect") || "";
+
+const isEmployer = requestedType === "employer" || !!requestedPlan;
+
+let planDetails = null;
+if (requestedPlan) {
+  try {
+    const db = getDb();
+    planDetails = await db.select().from(plans).where(eq(plans.planId, requestedPlan)).get();
+  } catch (err) {
+    console.error("Failed to load plan details:", err);
+  }
+}
+
+const googleAuthParams = new URLSearchParams();
+if (requestedPlan) googleAuthParams.set("plan", requestedPlan);
+if (isEmployer) googleAuthParams.set("type", "employer");
+else if (requestedType) googleAuthParams.set("type", requestedType);
+if (redirectParam) googleAuthParams.set("redirect", redirectParam);
+const googleAuthUrl = `/api/auth/google/redirect${googleAuthParams.toString() ? `?${googleAuthParams.toString()}` : ''}`;
 ---
 
-<Layout hideNavAndFooter={true}>
+<Layout hideNavAndFooter={true} title="Sign Up - JobNed">
   <main class="auth-container">
     <a href="/" class="back-home-link">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="19" y1="12" x2="5" y2="12"></line>
         <polyline points="12 19 5 12 12 5"></polyline>
       </svg>
@@ -18,24 +50,97 @@ const requestedPlan = Astro.url.searchParams.get('plan');
     <div class="auth-card card">
       <div class="auth-header">
         <h1>Create an Account</h1>
-        <p>Join RecruitNest and start your journey</p>
+        <p>Create your JobNed account to get started</p>
+      </div>
+
+      {planDetails && (
+        <div class="selected-plan-banner">
+          <div class="banner-plan-left">
+            <span class="banner-tag">Selected Subscription</span>
+            <strong class="banner-plan-title">{planDetails.planName}</strong>
+          </div>
+          <div class="banner-plan-price">
+            {planDetails.price > 0 ? `$${planDetails.price} / month` : 'Free Tier'}
+          </div>
+        </div>
+      )}
+
+      <div class="social-auth">
+        <a href={googleAuthUrl} class="btn-google-auth">
+          <svg width="20" height="20" viewBox="0 0 24 24">
+            <path
+              fill="#4285F4"
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+            ></path>
+            <path
+              fill="#34A853"
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+            ></path>
+            <path
+              fill="#FBBC05"
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+            ></path>
+            <path
+              fill="#EA4335"
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+            ></path>
+          </svg>
+          <span>Continue with Google</span>
+        </a>
+      </div>
+
+      <div class="auth-divider">
+        <span>or sign up with email</span>
       </div>
 
       <form class="auth-form" id="register-form">
-        {requestedPlan && <input type="hidden" name="planId" value={requestedPlan} />}
+        {
+          requestedPlan && (
+            <input type="hidden" name="planId" value={requestedPlan} />
+          )
+        }
         <div class="user-type-selector">
           <label class="type-btn">
-            <input type="radio" name="userType" value="employee" checked={requestedType !== 'employer'} />
+            <input
+              type="radio"
+              name="userType"
+              value="employee"
+              checked={!isEmployer ? true : undefined}
+            />
             <span class="type-content">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-              Job Seeker
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                ><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+                ></path><circle cx="12" cy="7" r="4"></circle></svg
+              >
+              <span>Job Seeker</span>
             </span>
           </label>
           <label class="type-btn">
-            <input type="radio" name="userType" value="employer" checked={requestedType === 'employer'} />
+            <input
+              type="radio"
+              name="userType"
+              value="employer"
+              checked={isEmployer ? true : undefined}
+            />
             <span class="type-content">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
-              Employer
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                ><rect x="2" y="7" width="20" height="14" rx="2" ry="2"
+                ></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"
+                ></path></svg
+              >
+              <span>Employer</span>
             </span>
           </label>
         </div>
@@ -43,50 +148,140 @@ const requestedPlan = Astro.url.searchParams.get('plan');
         <div class="name-grid">
           <div class="form-group">
             <label for="firstName">First Name</label>
-            <input type="text" id="firstName" name="firstName" required placeholder="John" />
+            <input
+              type="text"
+              id="firstName"
+              name="firstName"
+              required
+              placeholder="John"
+            />
           </div>
           <div class="form-group">
             <label for="lastName">Last Name</label>
-            <input type="text" id="lastName" name="lastName" required placeholder="Doe" />
+            <input
+              type="text"
+              id="lastName"
+              name="lastName"
+              required
+              placeholder="Doe"
+            />
           </div>
         </div>
 
         <div class="form-group">
           <label for="email">Email Address</label>
-          <input type="email" id="email" name="email" required placeholder="name@example.com" />
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            placeholder="name@example.com"
+          />
         </div>
 
-        <div class="form-group">
-          <label for="password">Password</label>
-          <div class="password-wrapper">
-            <input type="password" id="password" name="password" required placeholder="••••••••" minlength="6" />
-            <button type="button" class="password-toggle" data-target="password" aria-label="Toggle password visibility">
-              <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-              <svg class="eye-off-icon" style="display: none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                <line x1="1" y1="1" x2="23" y2="23"></line>
-              </svg>
-            </button>
+        <div class="password-grid">
+          <div class="form-group">
+            <label for="password">Password</label>
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                required
+                placeholder="••••••••"
+                minlength="6"
+              />
+              <button
+                type="button"
+                class="password-toggle"
+                data-target="password"
+                aria-label="Toggle password visibility"
+              >
+                <svg
+                  class="eye-icon"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg
+                  class="eye-off-icon"
+                  style="display: none;"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                  ></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div class="form-group">
-          <label for="confirmPassword">Confirm Password</label>
-          <div class="password-wrapper">
-            <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="••••••••" minlength="6" />
-            <button type="button" class="password-toggle" data-target="confirmPassword" aria-label="Toggle confirm password visibility">
-              <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-              <svg class="eye-off-icon" style="display: none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                <line x1="1" y1="1" x2="23" y2="23"></line>
-              </svg>
-            </button>
+          <div class="form-group">
+            <label for="confirmPassword">Confirm Password</label>
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                required
+                placeholder="••••••••"
+                minlength="6"
+              />
+              <button
+                type="button"
+                class="password-toggle"
+                data-target="confirmPassword"
+                aria-label="Toggle confirm password visibility"
+              >
+                <svg
+                  class="eye-icon"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg
+                  class="eye-off-icon"
+                  style="display: none;"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                  ></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -94,7 +289,10 @@ const requestedPlan = Astro.url.searchParams.get('plan');
       </form>
 
       <div class="auth-footer">
-        <p>Already have an account? <a href="/login" class="text-primary fw-600">Log in</a></p>
+        <p>
+          Already have an account? <a href={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : "/login"} class="text-primary fw-600"
+            >Log in</a>
+        </p>
       </div>
     </div>
   </main>
@@ -106,7 +304,7 @@ const requestedPlan = Astro.url.searchParams.get('plan');
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    padding: 2rem 1.5rem;
+    padding: 2.5rem 1.5rem;
     background-color: var(--color-bg);
     position: relative;
   }
@@ -119,6 +317,7 @@ const requestedPlan = Astro.url.searchParams.get('plan');
     align-items: center;
     gap: 0.5rem;
     color: var(--color-text-muted);
+    font-size: 0.9rem;
     font-weight: 500;
     text-decoration: none;
     transition: all 0.2s ease;
@@ -144,30 +343,128 @@ const requestedPlan = Astro.url.searchParams.get('plan');
 
   .auth-header {
     text-align: center;
-    margin-bottom: 2rem;
+    margin-bottom: 1.75rem;
   }
 
   .auth-header h1 {
     font-size: 1.75rem;
+    font-weight: 700;
     margin-bottom: 0.5rem;
+    color: var(--color-text-main);
+    letter-spacing: -0.02em;
   }
 
   .auth-header p {
     color: var(--color-text-muted);
+    font-size: 0.95rem;
     margin: 0;
+  }
+
+  .selected-plan-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(124, 58, 237, 0.06);
+    border: 1px solid rgba(124, 58, 237, 0.2);
+    border-radius: var(--border-radius-md);
+    padding: 0.65rem 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .banner-plan-left {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    gap: 0.1rem;
+  }
+
+  .banner-tag {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--color-primary, #7c3aed);
+    letter-spacing: 0.06em;
+  }
+
+  .banner-plan-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-main);
+  }
+
+  .banner-plan-price {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+  }
+
+  .social-auth {
+    margin-bottom: 1.25rem;
+  }
+
+  .btn-google-auth {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem 1rem;
+    background: #ffffff !important;
+    color: #1f1f1f !important;
+    border: 1px solid #dadce0 !important;
+    border-radius: var(--border-radius-md, 10px);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .btn-google-auth:hover {
+    background: #f8f9fa !important;
+    border-color: #d2e3fc !important;
+    box-shadow: 0 2px 8px rgba(66, 133, 244, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .auth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1.5rem 0;
+    color: var(--color-text-muted, #94a3b8);
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .auth-divider::before,
+  .auth-divider::after {
+    content: "";
+    flex: 1;
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+  }
+
+  .auth-divider span {
+    padding: 0 0.75rem;
   }
 
   .auth-form {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1.25rem;
   }
 
   .user-type-selector {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 0.5rem;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
   }
 
   .type-btn {
@@ -180,27 +477,32 @@ const requestedPlan = Astro.url.searchParams.get('plan');
 
   .type-content {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    padding: 1.25rem;
-    border: 2px solid var(--color-border);
-    border-radius: var(--border-radius-md);
+    padding: 0.65rem 0.85rem;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--border-radius-md, 10px);
     color: var(--color-text-muted);
-    transition: all 0.2s;
-    font-weight: 500;
+    background-color: var(--color-bg);
+    transition: all 0.2s ease;
+    font-weight: 600;
+    font-size: 0.9rem;
   }
 
   .type-btn input:checked + .type-content {
     border-color: var(--color-primary);
-    background-color: var(--color-primary-light);
-    color: var(--color-primary-dark);
+    background-color: rgba(124, 58, 237, 0.08);
+    color: var(--color-primary);
+    box-shadow: 0 0 0 1px var(--color-primary);
   }
 
-  .name-grid {
+  .name-grid,
+  .password-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: 0.85rem;
   }
 
   .form-group {
@@ -222,13 +524,15 @@ const requestedPlan = Astro.url.searchParams.get('plan');
     border-radius: var(--border-radius-md);
     font-size: 1rem;
     font-family: inherit;
-    transition: border-color 0.2s;
+    background-color: var(--color-bg);
+    color: var(--color-text-main);
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
 
   .form-group input:focus {
     outline: none;
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-light);
+    box-shadow: 0 0 0 3px var(--color-primary-light, rgba(124, 58, 237, 0.15));
   }
 
   .password-wrapper {
@@ -238,7 +542,7 @@ const requestedPlan = Astro.url.searchParams.get('plan');
   }
 
   .password-wrapper input {
-    padding-right: 2.5rem;
+    padding-right: 2.75rem;
   }
 
   .password-toggle {
@@ -260,7 +564,10 @@ const requestedPlan = Astro.url.searchParams.get('plan');
 
   .w-full {
     width: 100%;
+    padding: 0.75rem 1.5rem;
     margin-top: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
   }
 
   .auth-footer {
@@ -270,124 +577,174 @@ const requestedPlan = Astro.url.searchParams.get('plan');
     color: var(--color-text-muted);
   }
 
-  .fw-600 {
-    font-weight: 600;
+  @media (max-width: 640px) {
+    .auth-container {
+      padding: 5rem 1rem 2rem 1rem;
+      align-items: flex-start;
+    }
+    .back-home-link {
+      top: 1rem;
+      left: 1rem;
+      font-size: 0.85rem;
+      padding: 0.4rem 0.85rem;
+    }
+    .auth-card {
+      padding: 1.75rem 1.25rem;
+    }
+    .name-grid,
+    .password-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 
 <script>
   // Password & Confirm Password visibility toggle
-  const passToggles = document.querySelectorAll('.password-toggle');
-  
+  const passToggles = document.querySelectorAll(".password-toggle");
+
   passToggles.forEach((toggle) => {
-    toggle.addEventListener('click', () => {
-      const targetId = toggle.getAttribute('data-target') || 'password';
-      const targetInput = document.getElementById(targetId) as HTMLInputElement | null;
+    toggle.addEventListener("click", () => {
+      const targetId = toggle.getAttribute("data-target") || "password";
+      const targetInput = document.getElementById(
+        targetId,
+      ) as HTMLInputElement | null;
       if (!targetInput) return;
 
-      const type = targetInput.getAttribute('type') === 'password' ? 'text' : 'password';
-      targetInput.setAttribute('type', type);
-      
-      const eyeIcon = toggle.querySelector('.eye-icon') as HTMLElement | null;
-      const eyeOffIcon = toggle.querySelector('.eye-off-icon') as HTMLElement | null;
-      
-      if (type === 'text') {
-        if (eyeIcon) eyeIcon.style.display = 'none';
-        if (eyeOffIcon) eyeOffIcon.style.display = 'block';
+      const type =
+        targetInput.getAttribute("type") === "password" ? "text" : "password";
+      targetInput.setAttribute("type", type);
+
+      const eyeIcon = toggle.querySelector(".eye-icon") as HTMLElement | null;
+      const eyeOffIcon = toggle.querySelector(
+        ".eye-off-icon",
+      ) as HTMLElement | null;
+
+      if (type === "text") {
+        if (eyeIcon) eyeIcon.style.display = "none";
+        if (eyeOffIcon) eyeOffIcon.style.display = "block";
       } else {
-        if (eyeIcon) eyeIcon.style.display = 'block';
-        if (eyeOffIcon) eyeOffIcon.style.display = 'none';
+        if (eyeIcon) eyeIcon.style.display = "block";
+        if (eyeOffIcon) eyeOffIcon.style.display = "none";
       }
     });
   });
 
   function enforceUrlParams() {
     const urlParams = new URLSearchParams(window.location.search);
-    const type = urlParams.get('type');
-    const plan = urlParams.get('plan');
-    
-    // Allow signup if they have either selected a type or selected a plan
-    if (!type && !plan) {
-      // @ts-ignore
-      if (window.showToast) window.showToast('Please choose an account type or plan first.', 'warning');
-      window.location.href = '/';
-      return;
+    const type = urlParams.get("type");
+    const plan = urlParams.get("plan");
+    const redirectUrl = urlParams.get("redirect");
+
+    const employerRadio = document.querySelector('input[name="userType"][value="employer"]') as HTMLInputElement | null;
+    const employeeRadio = document.querySelector('input[name="userType"][value="employee"]') as HTMLInputElement | null;
+
+    if (type === "employer" || plan) {
+      if (employerRadio) employerRadio.checked = true;
+      if (employeeRadio) employeeRadio.checked = false;
+    } else {
+      if (employeeRadio) employeeRadio.checked = true;
+      if (employerRadio) employerRadio.checked = false;
     }
-    
+
     // If they are an employer but have no plan, redirect them to pricing
-    if (type === 'employer' && !plan) {
+    if (type === "employer" && !plan) {
       // @ts-ignore
-      if (window.showToast) window.showToast('First choose a plan, then sign up.', 'warning');
-      window.location.href = '/pricing';
+      if (window.showToast)
+        window.showToast("First choose a plan, then sign up.", "warning");
+      window.location.href = "/pricing";
       return;
     }
   }
 
-  // Check immediately on page load
+  // Check immediately on page load & DOM ready
   enforceUrlParams();
+  document.addEventListener("DOMContentLoaded", enforceUrlParams);
 
-  const form = document.getElementById('register-form');
+  const form = document.getElementById("register-form");
   if (form) {
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target as HTMLFormElement);
       const data = Object.fromEntries(formData.entries());
 
-      const password = (data.password as string) || '';
-      const confirmPassword = (data.confirmPassword as string) || '';
+      const password = (data.password as string) || "";
+      const confirmPassword = (data.confirmPassword as string) || "";
 
       if (password.length < 6) {
         // @ts-ignore
-        if (window.showToast) window.showToast('Password must be at least 6 characters long.', 'error');
+        if (window.showToast)
+          window.showToast(
+            "Password must be at least 6 characters long.",
+            "error",
+          );
         return;
       }
 
       if (password !== confirmPassword) {
         // @ts-ignore
-        if (window.showToast) window.showToast('Passwords do not match. Please verify and try again.', 'error');
-        const confirmInput = document.getElementById('confirmPassword');
+        if (window.showToast)
+          window.showToast(
+            "Passwords do not match. Please verify and try again.",
+            "error",
+          );
+        const confirmInput = document.getElementById("confirmPassword");
         if (confirmInput) confirmInput.focus();
         return;
       }
 
-      if (data.userType === 'employer' && !data.planId) {
+      if (data.userType === "employer" && !data.planId) {
         // @ts-ignore
-        if (window.showToast) window.showToast('First choose a plan, then sign up.', 'warning');
-        window.location.href = '/pricing';
+        if (window.showToast)
+          window.showToast("First choose a plan, then sign up.", "warning");
+        window.location.href = "/pricing";
         return;
       }
 
-      const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-      const originalBtnText = submitBtn ? submitBtn.innerText : 'Sign Up';
+      const submitBtn = form.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement | null;
+      const originalBtnText = submitBtn ? submitBtn.innerText : "Sign Up";
       if (submitBtn) {
-        submitBtn.innerText = 'Creating Account...';
+        submitBtn.innerText = "Creating Account...";
         submitBtn.disabled = true;
       }
 
       try {
-        const res = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
         });
-        
+
         const result = await res.json();
         if (res.ok) {
           // Auto login after signup
           document.cookie = `auth_token=${result.token}; path=/; max-age=86400`;
           // @ts-ignore
-          if (window.showToast) window.showToast('Registration successful! Redirecting to your dashboard...');
-          
+          if (window.showToast)
+            window.showToast(
+              "Registration successful! Redirecting to payment...",
+            );
+
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirectUrl = urlParams.get('redirect');
+          const isSafeRedirect = redirectUrl && redirectUrl.startsWith('/') && !redirectUrl.startsWith('//');
+
           setTimeout(() => {
-            if (data.userType === 'employer') {
-              window.location.href = '/employer';
+            if (data.userType === "employer") {
+              if (result.requirePayment) {
+                window.location.href = `/checkout?plan=${encodeURIComponent(result.planId || 'P001')}`;
+              } else {
+                window.location.href = isSafeRedirect ? redirectUrl : "/employer";
+              }
             } else {
-              window.location.href = '/dashboard'; // Employee dashboard
+              window.location.href = isSafeRedirect ? redirectUrl : "/dashboard"; // Employee destination
             }
           }, 600);
         } else {
           // @ts-ignore
-          if (window.showToast) window.showToast(result.error || 'Registration failed', 'error');
+          if (window.showToast)
+            window.showToast(result.error || "Registration failed", "error");
           if (submitBtn) {
             submitBtn.innerText = originalBtnText;
             submitBtn.disabled = false;
@@ -395,7 +752,8 @@ const requestedPlan = Astro.url.searchParams.get('plan');
         }
       } catch (err) {
         // @ts-ignore
-        if (window.showToast) window.showToast('An error occurred during registration', 'error');
+        if (window.showToast)
+          window.showToast("An error occurred during registration", "error");
         if (submitBtn) {
           submitBtn.innerText = originalBtnText;
           submitBtn.disabled = false;

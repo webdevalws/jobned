@@ -1,33 +1,36 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "recruitnest",
-  "account_id": "ba6bd9c21ac1835d8941ec92b809442e",
+  "account_id": "a3facadfed4b16b29b95e200f259e7ff",
   "compatibility_date": "2026-08-06",
   "compatibility_flags": [
     "nodejs_compat"
   ],
   "vars": {
-    "PUBLIC_BASE_URL": "https://recruitnest.prashantsinghstd.workers.dev",
-    "PUBLIC_STORAGE_URL": "https://recruitnest.prashantsinghstd.workers.dev/uploads"
+    "PUBLIC_BASE_URL": "https://recruitnest.junior-webdev-alws.workers.dev",
+    "PUBLIC_STORAGE_URL": "https://recruitnest.junior-webdev-alws.workers.dev/uploads",
+    "PUBLIC_RAZORPAY_KEY_ID": "rzp_live_TbnQ3kUA2u3BbQ",
+    "RAZORPAY_KEY_ID": "rzp_live_TbnQ3kUA2u3BbQ"
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "recruitnest",
-      "database_id": "293b9585-0b6d-4a5d-b573-6bc7539ebcdb",
+      "database_id": "22e125f2-3ed6-43d0-91a1-a38d6a43ae58",
       "migrations_dir": "drizzle"
     }
   ],
+
   "r2_buckets": [
     {
       "binding": "BUCKET",
-      "bucket_name": "recruitnest-uploads"
+      "bucket_name": "recruitnest-storage"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "SESSION",
-      "id": "b4daec1a4a4c4a8daaee96253dbe4a95"
+      "id": "b238e5692b334ffda8615424b2ac3875"
     }
   ],
   "vectorize": [
@@ -40,6 +43,6 @@
     "binding": "AI"
   },
   "triggers": {
-    "crons": ["0 8 * * *"]
+    "crons": ["0 * * * *"]
   }
 }

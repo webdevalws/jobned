@@ -1,27 +1,28 @@
 ---
 import { getResumeViewerUrl } from '../../lib/resume-helper';
+import { sanitizeRichHtml } from '../../lib/sanitize';
 import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import { getDb } from "../../lib/db";
 import { jobPostings, applications, users } from "../../db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 // @ts-ignore
 const payload = Astro.locals.user;
-if (!payload) {
-  return Astro.redirect("/login");
-}
+const userType = payload?.userType || "employee";
 
 const { id } = Astro.params;
 
 let defaultBackUrl = "/jobs";
-if (payload.userType === "masteradmin") {
-  defaultBackUrl = "/masteradmin/employers";
-} else if (payload.userType === "superadmin") {
-  defaultBackUrl = "/superadmin/employers";
-} else if (payload.userType === "admin") {
-  defaultBackUrl = "/admin/jobs";
-} else if (payload.userType === "employer") {
-  defaultBackUrl = "/employer/jobs";
+if (payload) {
+  if (payload.userType === "masteradmin") {
+    defaultBackUrl = "/masteradmin/employers";
+  } else if (payload.userType === "superadmin") {
+    defaultBackUrl = "/superadmin/employers";
+  } else if (payload.userType === "admin") {
+    defaultBackUrl = "/admin/jobs";
+  } else if (payload.userType === "employer") {
+    defaultBackUrl = "/employer/jobs";
+  }
 }
 
 if (!id) {
@@ -51,36 +52,56 @@ try {
       companyName: users.companyName,
       companyIndustry: users.companyIndustry,
       companyWebsite: users.companyWebsite,
+      companyLogo: users.avatarUrl,
       employerId: jobPostings.employerId,
       status: jobPostings.status,
       isDeleted: jobPostings.isDeleted,
       applicationFormConfig: jobPostings.applicationFormConfig,
+      externalApplyUrl: jobPostings.externalApplyUrl,
+      applyMode: jobPostings.applyMode,
+      sourceType: jobPostings.sourceType,
     })
     .from(jobPostings)
     .leftJoin(users, eq(jobPostings.employerId, users.id))
     .where(eq(jobPostings.id, id))
     .get();
 
-  const isPrivilegedUser = ['masteradmin', 'superadmin', 'admin'].includes(payload.userType) || (payload.userType === 'employer' && job?.employerId === payload.userId);
+  const isPrivilegedUser = payload ? (['masteradmin', 'superadmin', 'admin'].includes(payload.userType) || (payload.userType === 'employer' && job?.employerId === payload.userId)) : false;
   if (!job || (!isPrivilegedUser && (job.status !== "published" || job.isDeleted))) {
     return Astro.redirect(defaultBackUrl);
   }
 
+  // Increment real view count when candidates/visitors view the job
+  if (!payload || payload.userType === 'employee' || !isPrivilegedUser) {
+    try {
+      await db
+        .update(jobPostings)
+        .set({
+          viewCount: sql`COALESCE(${jobPostings.viewCount}, 0) + 1`
+        })
+        .where(eq(jobPostings.id, id));
+    } catch (viewErr) {
+      console.warn("Could not increment job view count:", viewErr);
+    }
+  }
+
   // 2. Check if already applied
-  const existingApp = await db
-    .select()
-    .from(applications)
-    .where(
-      and(
-        eq(applications.jobPostingId, id),
-        eq(applications.applicantId, payload.userId)
+  if (payload && payload.userType === 'employee') {
+    const existingApp = await db
+      .select()
+      .from(applications)
+      .where(
+        and(
+          eq(applications.jobPostingId, id),
+          eq(applications.applicantId, payload.userId)
+        )
       )
-    )
-    .get();
-  
-  if (existingApp) {
-    alreadyApplied = true;
-    appId = existingApp.id;
+      .get();
+    
+    if (existingApp) {
+      alreadyApplied = true;
+      appId = existingApp.id;
+    }
   }
 } catch (e) {
   console.error("Error loading job detail page:", e);
@@ -88,7 +109,7 @@ try {
 }
 
 let candidateUser: any = null;
-if (payload.userType === 'employee') {
+if (payload && payload.userType === 'employee') {
   try {
     candidateUser = await db.select().from(users).where(eq(users.id, payload.userId)).get();
   } catch (err) {
@@ -97,7 +118,7 @@ if (payload.userType === 'employee') {
 }
 
 let jobApplicants: any[] = [];
-if (payload.userType === 'employer') {
+if (payload && payload.userType === 'employer') {
   try {
     jobApplicants = await db
       .select({
@@ -168,14 +189,40 @@ const formatSalary = (min: any, max: any, currency: string | null) => {
 
 const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
 const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 360}, 60%, 52%)`;
+
+const rawSnippet = (job.description || "").replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+const seoDescription = `${job.jobTitle} opening at ${job.companyName || 'Verified Employer'} in ${job.locationCity || 'Remote'}. ${rawSnippet.slice(0, 150)}... Apply now on JobNed!`;
+
+const seoJobData = {
+  title: `${job.jobTitle} at ${job.companyName || 'Verified Employer'}`,
+  description: rawSnippet || job.jobTitle,
+  datePosted: new Date().toISOString(),
+  employmentType: job.employmentType || "Full-time",
+  companyName: job.companyName || "Verified Employer",
+  companyLogo: job.companyLogo || undefined,
+  locationCity: job.locationCity || "Remote",
+  isRemote: !!job.locationRemote || (job.locationCity || "").toLowerCase().includes("remote"),
+  salaryMin: job.salaryMin || null,
+  salaryMax: job.salaryMax || null,
+  salaryCurrency: job.salaryCurrency || "USD",
+};
 ---
 
-<DashboardLayout title={`${job.jobTitle} - Job Details`} userType={payload.userType} activePath={
-  payload.userType === 'employer' ? '/employer/jobs' : 
-  payload.userType === 'masteradmin' ? '/masteradmin/employers' : 
-  payload.userType === 'superadmin' ? '/superadmin/employers' : 
-  payload.userType === 'admin' ? '/admin/jobs' : '/jobs'
-}>
+<DashboardLayout 
+  title={`${job.jobTitle} at ${job.companyName || 'Company'} - Job Opening`} 
+  description={seoDescription}
+  image={job.companyLogo || undefined}
+  noindex={false}
+  jobData={seoJobData}
+  schemaType="JobPosting"
+  userType={userType} 
+  activePath={
+    payload?.userType === 'employer' ? '/employer/jobs' : 
+    payload?.userType === 'masteradmin' ? '/masteradmin/employers' : 
+    payload?.userType === 'superadmin' ? '/superadmin/employers' : 
+    payload?.userType === 'admin' ? '/admin/jobs' : '/jobs'
+  }
+>
   <div class="job-detail-page-wrapper">
     <div class="back-nav mb-5">
       <a 
@@ -220,21 +267,101 @@ const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 
 
       <div class="content-section">
         <h2>Job Description</h2>
-        <div class="description-text" set:html={job.description} />
+        <div class="description-text" set:html={sanitizeRichHtml(job.description)} />
       </div>
 
-      {job.requirements && (
-        <div class="content-section mt-6">
-          <h2>Requirements</h2>
-          <div class="requirements-text">{job.requirements}</div>
+      {(() => {
+        let reqs = job.requirements;
+        if (typeof reqs === 'string') {
+          try { reqs = JSON.parse(reqs); } catch (e) {}
+        }
+        if (!reqs || (Array.isArray(reqs) && reqs.length === 0) || reqs === '[]' || reqs === '') return null;
+        return (
+          <div class="content-section mt-6">
+            <h2>Requirements</h2>
+            {Array.isArray(reqs) ? (
+              <ul class="requirements-list">
+                {reqs.map((r: string) => <li>{r}</li>)}
+      </ul>
+            ) : (
+              <div class="requirements-text">{reqs}</div>
+            )}
+          </div>
+        );
+      })()}
+
+      <!-- 1. GUEST VISITOR STATE: Require login before accessing application or company external redirect -->
+      {!payload ? (
+        <div class="application-section mt-8">
+          <div class="guest-apply-cta-card">
+            <div class="cta-badge-pill">
+              <span class="verified-dot"></span>
+              {job.applyMode === 'redirect' ? 'Verified Career Opportunity' : 'Open Position'}
+            </div>
+            <div class="cta-icon-wrapper">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <div class="cta-content">
+              <h3 class="cta-heading">Log in to Apply</h3>
+              <p class="cta-text">
+                Please log in or create a free candidate profile on JobNed to access the official application link for <strong>{job.companyName || 'this employer'}</strong> and track your application status.
+              </p>
+              <div class="cta-actions mt-4">
+                <a href={`/login?redirect=/jobs/${job.id}`} class="btn btn-primary btn-cta">
+                  <span>Log In to Apply</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                  </svg>
+                </a>
+                <a href={`/register?type=employee&redirect=/jobs/${job.id}`} class="btn btn-outline btn-cta">
+                  Create Free Account
+                </a>
+              </div>
+              <span class="cta-footnote">✨ Free for all job seekers • Access direct employer application links</span>
+            </div>
+          </div>
         </div>
-      )}
-
-      <hr class="divider mt-8 mb-8" />
-
-      <!-- Apply Option / View Application Button below description -->
-      {payload.userType === 'employee' && (
-        <div class="application-section">
+      ) : job.applyMode === 'redirect' && job.externalApplyUrl ? (
+        /* 2. LOGGED-IN USERS: External Career Portal (Redirect) */
+        <div class="application-section mt-8">
+          <div class="external-apply-cta-card">
+            <div class="cta-badge-pill">
+              <span class="verified-dot"></span>
+              Verified Career Opportunity
+            </div>
+            <div class="cta-icon-wrapper">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+            </div>
+            <div class="cta-content">
+              <h3 class="cta-heading">Apply on Official Company Portal</h3>
+              <p class="cta-text">
+                This position is actively hiring directly through <strong>{job.companyName || 'the employer'}</strong>'s official career website.
+              </p>
+              <div class="cta-actions mt-4">
+                <a 
+                  href={job.externalApplyUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  class="btn-external-apply"
+                >
+                  <span>Apply on Company Website ↗</span>
+                </a>
+              </div>
+              <span class="cta-footnote mt-2">🔒 Secure link to official application page</span>
+            </div>
+          </div>
+        </div>
+      ) : payload?.userType === 'employee' ? (
+        /* 3. LOGGED-IN CANDIDATE: Native 1-Click Apply */
+        <div class="application-section mt-8">
           {alreadyApplied ? (
             <div class="applied-state-inline">
               <div class="applied-info">
@@ -253,7 +380,6 @@ const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 
                 <input type="hidden" id="hasDefaultResume" value={candidateUser?.defaultResumeUrl ? 'true' : 'false'} />
                 
                 <div class="form-grid">
-                  <!-- Resume Choice Section -->
                   {candidateUser?.defaultResumeUrl ? (
                     <div class="form-group full-width-group">
                       <label class="form-label">Resume Submission <span class="required">*</span></label>
@@ -297,63 +423,62 @@ const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 
                   ) : (
                     <div class="form-group full-width-group">
                       <div class="no-default-resume-tip mb-3">
-                        <span class="tip-icon">💡</span>
+                        <div class="tip-icon">💡</div>
                         <div class="tip-body">
-                          <strong>No default resume set up yet</strong>
-                          <p>Upload your resume below and keep <em>"Save this resume as my default resume"</em> checked to enable 1-click applications for all future jobs! You can also manage it in <a href="/settings" class="tip-link">Settings ↗</a>.</p>
+                          <strong>No default resume uploaded yet</strong>
+                          <p>You can upload a resume for this application below, and optionally save it to your profile for 1-click apply next time.</p>
                         </div>
                       </div>
-                      <label class="form-label" for="resumeFile">Resume (PDF) <span class="required">*</span></label>
+                      <label class="form-label" for="resumeFile">Upload Resume (PDF) <span class="required">*</span></label>
                       <input type="file" id="resumeFile" class="form-input" accept="application/pdf" required />
-                      <span class="input-helper">Please upload your latest resume in PDF format (max 5MB).</span>
+                      <span class="input-helper">Please upload your resume in PDF format (max 5MB).</span>
                       <label class="checkbox-option mt-2">
                         <input type="checkbox" id="saveAsDefault" name="saveAsDefault" checked />
-                        <span class="checkbox-text">Save this resume as my default resume for future applications</span>
+                        <span class="checkbox-text">Save this as my default resume for future 1-click applications</span>
                       </label>
                     </div>
                   )}
 
                   <div class="form-group">
-                    <label class="form-label" for="photoFile">
-                      Profile Photo 
-                      {candidateUser?.avatarUrl ? <span class="optional-badge">(Optional to replace)</span> : <span class="required">*</span>}
-                    </label>
-                    {candidateUser?.avatarUrl && (
-                      <div class="existing-avatar-preview mb-2">
-                        <img src={candidateUser.avatarUrl} alt="Avatar" class="avatar-thumbnail" />
-                        <span class="avatar-status-text">✓ Using existing profile photo</span>
-                      </div>
-                    )}
-                    <input type="file" id="photoFile" class="form-input" accept="image/*" required={!candidateUser?.avatarUrl} />
-                    <span class="input-helper">Upload a clean portrait photo (PNG, JPG, WEBP).</span>
+                    <label class="form-label" for="candidateName">Full Name</label>
+                    <input type="text" id="candidateName" class="form-input" value={candidateUser?.fullName || payload.name || ''} placeholder="Your full name" required />
                   </div>
 
                   <div class="form-group">
-                    <label class="form-label" for="linkedinUrl">LinkedIn Profile URL <span class="required">*</span></label>
-                    <input type="url" id="linkedinUrl" class="form-input" placeholder="https://linkedin.com/in/username" value={candidateUser?.linkedinUrl || ''} required />
+                    <label class="form-label" for="candidateEmail">Email Address</label>
+                    <input type="email" id="candidateEmail" class="form-input" value={candidateUser?.email || payload.email || ''} placeholder="you@example.com" required />
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="candidatePhone">Phone Number</label>
+                    <input type="tel" id="candidatePhone" class="form-input" value={candidateUser?.phone || ''} placeholder="+1 (555) 000-0000" />
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="candidateLocation">Current Location</label>
+                    <input type="text" id="candidateLocation" class="form-input" value={candidateUser?.location || ''} placeholder="City, Country" />
                   </div>
 
                   <div class="form-group full-width-group">
-                    <label class="form-label" for="portfolioUrl">Portfolio / Personal Website</label>
-                    <input type="url" id="portfolioUrl" class="form-input" placeholder="https://myportfolio.com" value={candidateUser?.portfolioUrl || ''} />
+                    <label class="form-label" for="candidateHeadline">Professional Headline</label>
+                    <input type="text" id="candidateHeadline" class="form-input" value={candidateUser?.headline || ''} placeholder="e.g. Senior Frontend Developer with 5+ years experience" />
                   </div>
                 </div>
 
-                <!-- Custom Screening Questions Section -->
+                {/* Screening Questions Section */}
                 {screeningQuestions.length > 0 && (
-                  <div class="screening-questions-container mt-4 mb-4">
-                    <div class="screening-header mb-3">
-                      <h3>📝 Applicant Screening Questions</h3>
-                      <p class="screening-sub">The employer has requested answers to the following questions before reviewing your application:</p>
+                  <div class="screening-questions-section mt-4">
+                    <div class="screening-header">
+                      <h3 class="screening-title">Employer Screening Questions</h3>
+                      <p class="screening-subtitle">The employer has requested answers to the following questions:</p>
                     </div>
-
-                    <div class="screening-questions-list">
+                    
+                    <div class="screening-questions-list mt-3">
                       {screeningQuestions.map((q: any, idx: number) => (
-                        <div class="screening-question-card" data-q-id={q.id} data-q-type={q.type} data-q-text={q.text} data-q-required={q.required ? 'true' : 'false'}>
-                          <label class="screening-q-label">
-                            <span class="q-number-pill">Q{idx + 1}</span>
-                            <span class="q-prompt-text">{q.text}</span>
-                            {q.required ? <span class="required-badge">* Required</span> : <span class="optional-badge">(Optional)</span>}
+                        <div class="screening-item mb-4" data-q-id={q.id} data-q-type={q.type} data-q-text={q.text} data-q-required={q.required ? 'true' : 'false'}>
+                          <label class="form-label screening-question-label">
+                            <span class="question-num">{idx + 1}.</span> {q.text}
+                            {q.required && <span class="required">*</span>}
                           </label>
 
                           {q.type === 'text' && (
@@ -361,8 +486,8 @@ const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 
                               type="text" 
                               class="form-input screening-answer-input" 
                               name={`sq_${q.id}`} 
-                              required={q.required} 
-                              placeholder="Type your response here..." 
+                              placeholder="Your answer..."
+                              required={q.required}
                             />
                           )}
 
@@ -371,30 +496,19 @@ const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 
                               class="form-textarea screening-answer-input" 
                               name={`sq_${q.id}`} 
                               rows="3" 
-                              required={q.required} 
-                              placeholder="Type your detailed response here..."
+                              placeholder="Your answer..."
+                              required={q.required}
                             ></textarea>
                           )}
 
-                          {q.type === 'number' && (
-                            <input 
-                              type="number" 
-                              class="form-input screening-answer-input" 
-                              name={`sq_${q.id}`} 
-                              required={q.required} 
-                              placeholder="e.g. 3" 
-                              step="any"
-                            />
-                          )}
-
                           {q.type === 'yes_no' && (
-                            <div class="yes-no-options">
-                              <label class="radio-option">
+                            <div class="screening-radio-group">
+                              <label class="radio-label">
                                 <input type="radio" name={`sq_${q.id}`} value="Yes" required={q.required} />
                                 <span class="radio-custom"></span>
                                 <span class="radio-text">Yes</span>
                               </label>
-                              <label class="radio-option">
+                              <label class="radio-label">
                                 <input type="radio" name={`sq_${q.id}`} value="No" required={q.required} />
                                 <span class="radio-custom"></span>
                                 <span class="radio-text">No</span>
@@ -431,10 +545,10 @@ const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       <!-- Employer Applicants Management Section -->
-      {payload.userType === 'employer' && (
+      {payload?.userType === 'employer' && (
         <div class="employer-applicants-section mt-8">
           <div class="applicants-section-header">
             <div>
@@ -481,13 +595,6 @@ const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 
                   </div>
 
                   <div class="candidate-card-badges">
-                    {app.aiScore !== null && app.aiScore !== undefined ? (
-                      <span class={`score-pill ${app.aiScore >= 75 ? 'score-high' : app.aiScore >= 50 ? 'score-mid' : 'score-low'}`}>
-                        ⚡ {app.aiScore}% Match
-                      </span>
-                    ) : (
-                      <span class="score-pill score-pending">AI Evaluating</span>
-                    )}
                     <span class={`status-badge status-${app.status}`}>
                       {app.status.replace('_', ' ')}
                     </span>
@@ -720,6 +827,162 @@ const logoColor = `hsl(${Math.abs((job.companyName || "X").charCodeAt(0) * 7) % 
 </script>
 
 <style>
+  .external-apply-cta-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.08) 100%);
+    border: 1.5px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--border-radius-xl, 20px);
+    padding: 3rem 2rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.15);
+    margin: 2rem 0 1rem 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-badge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 0.3rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.775rem;
+    font-weight: 600;
+    margin-bottom: 1.25rem;
+    letter-spacing: 0.02em;
+  }
+  .verified-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    display: inline-block;
+  }
+  .external-apply-cta-card .cta-icon-wrapper {
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px rgba(99, 102, 241, 0.35);
+    margin-bottom: 1.25rem;
+    transform: rotate(-3deg);
+    transition: transform 0.3s ease;
+  }
+  .external-apply-cta-card:hover .cta-icon-wrapper {
+    transform: rotate(0deg) scale(1.05);
+  }
+  .cta-heading {
+    font-size: 1.45rem;
+    font-weight: 800;
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-main);
+    letter-spacing: -0.02em;
+  }
+  .cta-text {
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+    margin: 0 auto;
+    max-width: 520px;
+    line-height: 1.6;
+  }
+  .btn-external-apply {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #ffffff !important;
+    padding: 0.875rem 2.25rem;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 9999px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    box-shadow: 0 10px 25px rgba(99, 102, 241, 0.35);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  .btn-external-apply:hover {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 15px 35px rgba(99, 102, 241, 0.5);
+    color: #ffffff !important;
+  }
+  .cta-footnote {
+    display: block;
+    font-size: 0.775rem;
+    color: var(--color-text-muted);
+    margin-top: 1rem;
+    opacity: 0.85;
+  }
+
+  .guest-apply-cta-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.08));
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--border-radius-lg, 16px);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    margin: 1rem 0;
+  }
+  .cta-icon-wrapper {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+    margin-bottom: 0.5rem;
+  }
+  .cta-content h3 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-main);
+  }
+  .cta-content p {
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+    margin: 0 auto;
+    max-width: 480px;
+    line-height: 1.5;
+  }
+  .cta-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn-cta {
+    padding: 0.75rem 1.75rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border-radius: var(--border-radius-md);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+  .btn-cta:hover {
+    transform: translateY(-2px);
+  }
+
   .no-default-resume-tip {
     display: flex;
     align-items: flex-start;

@@ -1,12 +1,22 @@
 ---
 import "../styles/global.css";
+import CookieBanner from "../components/CookieBanner.astro";
 import Sidebar from "../components/Sidebar.astro";
 import MobileBottomNav from "../components/MobileBottomNav.astro";
 import SEO from "../components/SEO.astro";
 import { getDb } from "../lib/db";
 import { applications, users, notifications } from "../db/schema";
 import { eq, and } from "drizzle-orm";
-const { title, userType, activePath } = Astro.props;
+const {
+  title,
+  userType,
+  activePath,
+  noindex = !['/jobs', '/'].includes(activePath) && !activePath?.startsWith('/jobs/'),
+  description,
+  image,
+  jobData,
+  schemaType,
+} = Astro.props;
 // @ts-ignore
 const payload = Astro.locals.user;
 
@@ -85,7 +95,7 @@ const logoHomePath =
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="generator" content={Astro.generator} />
-    <SEO title={title} noindex={true} />
+    <SEO title={title} description={description} image={image} noindex={noindex} jobData={jobData} schemaType={schemaType} />
     <link
       rel="stylesheet"
       type="text/css"
@@ -195,7 +205,7 @@ const logoHomePath =
                 ></line></svg
               >
             </button>
-            <a href={logoHomePath} class="mobile-logo">RecruitNest</a>
+            <a href={logoHomePath} class="mobile-logo">Job<span class="highlight">Ned</span></a>
           </div>
           <div class="topbar-actions">
             <!-- Light/Dark Mode Theme Toggle Button -->
@@ -245,76 +255,70 @@ const logoHomePath =
               >
             </button>
 
-            <a
-              href={userType === "employer"
-                ? "/employer/notifications"
-                : userType === "admin"
-                  ? "/admin/notifications"
-                  : userType === "superadmin"
-                    ? "/superadmin/notifications"
-                    : userType === "masteradmin"
-                      ? "/masteradmin/notifications"
-                      : "/notifications"}
-              class="icon-btn notification-btn"
-              id="topbarNotificationBtn"
-              aria-label="Notifications"
-            >
-              {
-                notificationCount > 0 && (
-                  <span
-                    class="badge"
-                    id="topbarNotificationBadge"
-                    data-count={notificationCount}
-                  >
-                    {notificationCount > 99 ? "99+" : notificationCount}
-                  </span>
-                )
-              }
-              <!-- Bell Icon SVG -->
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                ><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"
-                ></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg
-              >
-            </a>
-            <a
-              href={userType === "employer"
-                ? "/employer/settings"
-                : userType === "admin"
-                  ? "/admin/profile"
-                  : userType === "superadmin"
-                    ? "/superadmin/profile"
-                    : userType === "masteradmin"
-                      ? "/masteradmin/profile"
-                      : "/settings"}
-              class="user-profile"
-              style="text-decoration: none;"
-            >
-              <img
-                src={userRecord?.avatarUrl ||
-                  (userRecord
-                    ? `/images/default-avatar.png`
-                    : "/images/default-avatar.png")}
-                alt="Profile"
-                class="avatar"
-              />
-              <div class="user-info">
-                <span class="name"
-                  >{
-                    userRecord
-                      ? `${userRecord.firstName} ${userRecord.lastName}`
-                      : "Guest"
-                  }</span
+            {payload ? (
+              <>
+                <a
+                  href={userType === "employer"
+                    ? "/employer/notifications"
+                    : userType === "admin"
+                      ? "/admin/notifications"
+                      : userType === "superadmin"
+                        ? "/superadmin/notifications"
+                        : userType === "masteradmin"
+                          ? "/masteradmin/notifications"
+                          : "/notifications"}
+                  class="icon-btn notification-btn"
+                  id="topbarNotificationBtn"
+                  aria-label="Notifications"
                 >
-                <span class="role" style="text-transform: capitalize;"
-                  >{
-                    payload
-                      ? payload.userType === "employee"
+                  {
+                    notificationCount > 0 && (
+                      <span
+                        class="badge"
+                        id="topbarNotificationBadge"
+                        data-count={notificationCount}
+                      >
+                        {notificationCount > 99 ? "99+" : notificationCount}
+                      </span>
+                    )
+                  }
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    ><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"
+                    ></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg
+                  >
+                </a>
+                <a
+                  href={userType === "employer"
+                    ? "/employer/settings"
+                    : userType === "admin"
+                      ? "/admin/profile"
+                      : userType === "superadmin"
+                        ? "/superadmin/profile"
+                        : userType === "masteradmin"
+                          ? "/masteradmin/profile"
+                          : "/settings"}
+                  class="user-profile"
+                  style="text-decoration: none;"
+                >
+                  <img
+                    src={userRecord?.avatarUrl || "/images/default-avatar.png"}
+                    alt="Profile"
+                    class="avatar"
+                  />
+                  <div class="user-info">
+                    <span class="name">
+                      {userRecord
+                        ? `${userRecord.firstName} ${userRecord.lastName}`
+                        : "User"}
+                    </span>
+                    <span class="role" style="text-transform: capitalize;">
+                      {payload.userType === "employee"
                         ? "Job Seeker"
                         : payload.userType === "employer"
                           ? "Employer"
@@ -324,12 +328,17 @@ const logoHomePath =
                               ? "Super Admin"
                               : payload.userType === "masteradmin"
                                 ? "Master Admin"
-                                : payload.userType
-                      : "User"
-                  }</span
-                >
+                                : payload.userType}
+                    </span>
+                  </div>
+                </a>
+              </>
+            ) : (
+              <div class="guest-topbar-actions" style="display: flex; align-items: center; gap: 0.6rem;">
+                <a href="/login" class="btn btn-outline" style="padding: 0.35rem 0.85rem; font-size: 0.82rem; border-radius: 9999px;">Log in</a>
+                <a href="/register?type=employee" class="btn btn-primary" style="padding: 0.35rem 0.85rem; font-size: 0.82rem; border-radius: 9999px;">Sign up</a>
               </div>
-            </a>
+            )}
           </div>
         </header>
 
@@ -339,6 +348,7 @@ const logoHomePath =
       </div>
     </div>
     <MobileBottomNav userType={userType} activePath={activePath} />
+    <CookieBanner />
   </body>
 </html>
 
@@ -683,12 +693,26 @@ const logoHomePath =
         trigger.addEventListener("click", (e) => {
           e.stopPropagation();
           populateMenu();
+          const wasOpen = container.classList.contains("open");
           document
             .querySelectorAll(".custom-select-container.open")
             .forEach((other) => {
-              if (other !== container) other.classList.remove("open");
+              other.classList.remove("open");
+              const p = other.closest(".form-card, .card, .card-sub, .form-section, .form-group");
+              if (p) {
+                p.style.zIndex = "";
+                p.style.position = "";
+              }
             });
-          container.classList.toggle("open");
+
+          if (!wasOpen) {
+            container.classList.add("open");
+            const parentCard = container.closest(".form-card, .card, .card-sub, .form-section, .form-group");
+            if (parentCard) {
+              parentCard.style.zIndex = "100";
+              parentCard.style.position = "relative";
+            }
+          }
 
           if (container.classList.contains("open")) {
             const rect = trigger.getBoundingClientRect();
@@ -714,7 +738,14 @@ const logoHomePath =
   document.addEventListener("click", () => {
     document
       .querySelectorAll(".custom-select-container.open")
-      .forEach((c) => c.classList.remove("open"));
+      .forEach((c) => {
+        c.classList.remove("open");
+        const p = c.closest(".form-card, .card, .card-sub, .form-section, .form-group");
+        if (p) {
+          p.style.zIndex = "";
+          p.style.position = "";
+        }
+      });
   });
 </script>
 

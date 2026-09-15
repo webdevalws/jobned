@@ -110,10 +110,15 @@ function formatInterviewTime(d: any) {
         <p class="subtitle">Schedule, manage candidate interview rounds, and sync with Google Calendar & Outlook.</p>
       </div>
 
-      <button type="button" class="btn btn-primary btn-glow" onclick="openScheduleModal()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        Schedule New Interview
-      </button>
+      <div class="header-actions-group" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+        <a href="/employer/applications" class="btn btn-outline" title="Select candidates by role & status to schedule bulk interviews">
+          ⚡ Bulk Schedule Interviews &rarr;
+        </a>
+        <button type="button" class="btn btn-primary btn-glow" onclick="openScheduleModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Schedule Single Interview
+        </button>
+      </div>
     </div>
 
     <!-- Stats Summary Row -->
@@ -393,9 +398,6 @@ function formatInterviewTime(d: any) {
                           <div class="opt-meta-line">
                             <span class="opt-job-tag">💼 {app.jobTitle}</span>
                             {appliedFormatted && <span class="opt-date-tag">• Applied {appliedFormatted}</span>}
-                            {app.aiScore !== null && (
-                              <span class="opt-score-tag">✨ {app.aiScore}% Match</span>
-                            )}
                             <span class="opt-status-tag">{app.status.replace('_', ' ')}</span>
                           </div>
                         </div>

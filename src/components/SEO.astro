@@ -1,18 +1,23 @@
 ---
-import { getBaseUrl } from '../lib/config';
+import { getBaseUrl } from "../lib/config";
 
 interface Props {
   title?: string;
   description?: string;
   image?: string;
-  type?: 'website' | 'article' | 'job' | 'profile';
+  type?: "website" | "article" | "job" | "profile";
   noindex?: boolean;
   canonicalUrl?: string;
   keywords?: string;
   author?: string;
   publishedTime?: string;
   modifiedTime?: string;
-  schemaType?: 'WebSite' | 'Organization' | 'JobPosting' | 'SoftwareApplication' | 'BreadcrumbList';
+  schemaType?:
+    | "WebSite"
+    | "Organization"
+    | "JobPosting"
+    | "SoftwareApplication"
+    | "BreadcrumbList";
   jobData?: {
     title: string;
     description: string;
@@ -45,113 +50,140 @@ const {
   modifiedTime,
   schemaType,
   jobData,
-  customSchema
+  customSchema,
 } = Astro.props;
 
 // Base URL calculation
 const baseUrl = getBaseUrl();
 const siteName = "RecruitNest";
 const defaultTitle = "RecruitNest - AI-Powered Job & Talent Matching Platform";
-const formattedTitle = title ? (title.includes(siteName) ? title : `${title} | ${siteName}`) : defaultTitle;
+const formattedTitle = title
+  ? title.includes(siteName)
+    ? title
+    : `${title} | ${siteName}`
+  : defaultTitle;
 
 // Absolute Canonical & Image URLs (Uses request origin dynamically so live site domain matches canonical URL)
-const currentOrigin = Astro.url?.origin ? Astro.url.origin.replace(/\/+$/, '') : baseUrl;
-const pathname = Astro.url?.pathname || '';
+const currentOrigin = Astro.url?.origin
+  ? Astro.url.origin.replace(/\/+$/, "")
+  : baseUrl;
+const pathname = Astro.url?.pathname || "";
 const absoluteCanonical = canonicalUrl || `${currentOrigin}${pathname}`;
-const absoluteImage = image.startsWith('http') ? image : `${currentOrigin}${image.startsWith('/') ? image : `/${image}`}`;
+const absoluteImage = image.startsWith("http")
+  ? image
+  : `${currentOrigin}${image.startsWith("/") ? image : `/${image}`}`;
 
 // Robots directive
-const robotsContent = noindex ? "noindex, nofollow" : "index, follow, max-image-preview:large";
+const robotsContent = noindex
+  ? "noindex, nofollow"
+  : "index, follow, max-image-preview:large";
 
 // Base Schema.org Objects
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  "name": "RecruitNest",
-  "url": baseUrl,
-  "logo": `${baseUrl}/images/logo-icon.png`,
-  "sameAs": [
+  name: "RecruitNest",
+  url: baseUrl,
+  logo: `${baseUrl}/images/logo-icon.png`,
+  sameAs: [
     "https://twitter.com/recruitnest",
     "https://linkedin.com/company/recruitnest",
-    "https://facebook.com/recruitnest"
-  ]
+    "https://facebook.com/recruitnest",
+  ],
 };
 
 const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "name": "RecruitNest",
-  "url": baseUrl,
-  "potentialAction": {
+  name: "RecruitNest",
+  url: baseUrl,
+  potentialAction: {
     "@type": "SearchAction",
-    "target": `${baseUrl}/jobs?q={search_term_string}`,
-    "query-input": "required name=search_term_string"
-  }
+    target: `${baseUrl}/jobs?q={search_term_string}`,
+    "query-input": "required name=search_term_string",
+  },
 };
 
 const appSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "RecruitNest",
-  "operatingSystem": "All",
-  "applicationCategory": "BusinessApplication",
-  "offers": {
+  name: "RecruitNest",
+  operatingSystem: "All",
+  applicationCategory: "BusinessApplication",
+  offers: {
     "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD"
-  }
+    price: "0",
+    priceCurrency: "USD",
+  },
 };
 
 // JobPosting Schema.org for Google for Jobs
 let jobPostingSchema: any = null;
-if (jobData || schemaType === 'JobPosting') {
-  const d = jobData || { title: title || "Job Opening", description: description };
+if (jobData || schemaType === "JobPosting") {
+  const d = jobData || {
+    title: title || "Job Opening",
+    description: description,
+  };
   jobPostingSchema = {
     "@context": "https://schema.org",
     "@type": "JobPosting",
-    "title": d.title || title || "Job Opening",
-    "description": d.description ? d.description.replace(/<[^>]*>?/gm, '') : description,
-    "datePosted": d.datePosted || new Date().toISOString(),
-    "validThrough": d.validThrough || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    "employmentType": d.employmentType ? d.employmentType.toUpperCase().replace('-', '_') : "FULL_TIME",
-    "hiringOrganization": {
+    title: d.title || title || "Job Opening",
+    description: d.description
+      ? d.description.replace(/<[^>]*>?/gm, "")
+      : description,
+    datePosted: d.datePosted || new Date().toISOString(),
+    validThrough:
+      d.validThrough ||
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    employmentType: d.employmentType
+      ? d.employmentType.toUpperCase().replace("-", "_")
+      : "FULL_TIME",
+    hiringOrganization: {
       "@type": "Organization",
-      "name": d.companyName || "RecruitNest Partner",
-      "logo": d.companyLogo ? (d.companyLogo.startsWith('http') ? d.companyLogo : `${baseUrl}${d.companyLogo}`) : `${baseUrl}/images/logo-icon.png`,
-      "sameAs": baseUrl
+      name: d.companyName || "RecruitNest Partner",
+      logo: d.companyLogo
+        ? d.companyLogo.startsWith("http")
+          ? d.companyLogo
+          : `${baseUrl}${d.companyLogo}`
+        : `${baseUrl}/images/logo-icon.png`,
+      sameAs: baseUrl,
     },
-    "jobLocation": d.isRemote ? {
-      "@type": "Place",
-      "address": {
-        "@type": "PostalAddress",
-        "addressCountry": d.locationCountry || "US"
-      }
-    } : {
-      "@type": "Place",
-      "address": {
-        "@type": "PostalAddress",
-        "addressLocality": d.locationCity || "Remote",
-        "addressRegion": d.locationState || "",
-        "addressCountry": d.locationCountry || "US"
-      }
-    },
-    "jobLocationType": d.isRemote ? "TELECOMMUTE" : undefined,
-    "applicantLocationRequirements": d.isRemote ? {
-      "@type": "Country",
-      "name": d.locationCountry || "USA"
-    } : undefined
+    jobLocation: d.isRemote
+      ? {
+          "@type": "Place",
+          address: {
+            "@type": "PostalAddress",
+            addressCountry: d.locationCountry || "US",
+          },
+        }
+      : {
+          "@type": "Place",
+          address: {
+            "@type": "PostalAddress",
+            addressLocality: d.locationCity || "Remote",
+            addressRegion: d.locationState || "",
+            addressCountry: d.locationCountry || "US",
+          },
+        },
+    jobLocationType: d.isRemote ? "TELECOMMUTE" : undefined,
+    applicantLocationRequirements: d.isRemote
+      ? {
+          "@type": "Country",
+          name: d.locationCountry || "USA",
+        }
+      : undefined,
   };
 
   if (d.salaryMin || d.salaryMax) {
     jobPostingSchema.baseSalary = {
       "@type": "MonetaryAmount",
-      "currency": d.salaryCurrency || "USD",
-      "value": {
+      currency: d.salaryCurrency || "USD",
+      value: {
         "@type": "QuantitativeValue",
-        "minValue": d.salaryMin || d.salaryMax,
-        "maxValue": d.salaryMax || d.salaryMin,
-        "unitText": "YEAR"
-      }
+        minValue: d.salaryMin || d.salaryMax,
+        maxValue: d.salaryMax || d.salaryMin,
+        unitText: "YEAR",
+      },
     };
   }
 }
@@ -172,13 +204,21 @@ if (jobData || schemaType === 'JobPosting') {
 
 <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
 <meta property="og:site_name" content={siteName} />
-<meta property="og:type" content={type === 'job' ? 'website' : type} />
+<meta property="og:type" content={type === "job" ? "website" : type} />
 <meta property="og:url" content={absoluteCanonical} />
 <meta property="og:title" content={formattedTitle} />
 <meta property="og:description" content={description} />
 <meta property="og:image" content={absoluteImage} />
-{publishedTime && <meta property="article:published_time" content={publishedTime} />}
-{modifiedTime && <meta property="article:modified_time" content={modifiedTime} />}
+{
+  publishedTime && (
+    <meta property="article:published_time" content={publishedTime} />
+  )
+}
+{
+  modifiedTime && (
+    <meta property="article:modified_time" content={modifiedTime} />
+  )
+}
 
 <!-- Twitter Cards -->
 <meta name="twitter:card" content="summary_large_image" />
@@ -190,14 +230,29 @@ if (jobData || schemaType === 'JobPosting') {
 <meta name="twitter:creator" content="@recruitnest" />
 
 <!-- Schema.org JSON-LD Structured Data -->
-<script type="application/ld+json" set:html={JSON.stringify(organizationSchema)} />
+<script
+  type="application/ld+json"
+  set:html={JSON.stringify(organizationSchema)}
+/>
 <script type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
-{schemaType === 'SoftwareApplication' && (
-  <script type="application/ld+json" set:html={JSON.stringify(appSchema)} />
-)}
-{jobPostingSchema && (
-  <script type="application/ld+json" set:html={JSON.stringify(jobPostingSchema)} />
-)}
-{customSchema && (
-  <script type="application/ld+json" set:html={JSON.stringify(customSchema)} />
-)}
+{
+  schemaType === "SoftwareApplication" && (
+    <script type="application/ld+json" set:html={JSON.stringify(appSchema)} />
+  )
+}
+{
+  jobPostingSchema && (
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(jobPostingSchema)}
+    />
+  )
+}
+{
+  customSchema && (
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(customSchema)}
+    />
+  )
+}

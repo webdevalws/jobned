@@ -154,7 +154,7 @@ if (appDetails.applicationFormConfig) {
 
 const pipelineStages = customStages || [
   { step: 1, title: 'Applied', icon: '📥', desc: 'Submitted on ' + appliedDate },
-  { step: 2, title: 'AI Screening', icon: '✨', desc: appDetails.aiScore !== null ? `AI Score: ${appDetails.aiScore}%` : 'Screening complete' },
+  { step: 2, title: 'Screening', icon: '📋', desc: 'Screening complete' },
   { step: 3, title: 'Recruiter Review', icon: '🔍', desc: 'Profile evaluation' },
   { step: 4, title: 'Interview Round', icon: '🎯', desc: 'Shortlisted evaluation' },
   { step: 5, title: 'Hiring Decision', icon: '🏆', desc: 'Final offer' },
@@ -262,23 +262,6 @@ const pipelineStages = customStages || [
           <a href={`/jobs/${appDetails.jobId}`} class="btn btn-outline">View Job Posting</a>
         </div>
       </div>
-
-      <!-- Section: AI Screening Score if evaluated -->
-      {appDetails.aiScore !== null && (
-        <div class="section-group mt-6">
-          <h3>AI Resume Screening Analysis</h3>
-          <div class="ai-analysis-box">
-            <div class="score-radial">
-              <span class="score-val">{appDetails.aiScore}%</span>
-              <span class="score-lbl">MATCH</span>
-            </div>
-            <div class="ai-summary-text">
-              <h4>AI Fit Summary</h4>
-              <p>{appDetails.aiSummary || 'Analysis generated upon application submission.'}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       <!-- Section: Candidate Submission details -->
       <div class="section-group mt-6">

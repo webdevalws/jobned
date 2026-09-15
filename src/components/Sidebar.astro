@@ -4,6 +4,8 @@ import { users, plans } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
 const { userType, activePath = "/dashboard" } = Astro.props;
+// @ts-ignore
+const payload = Astro.locals.user as any;
 
 // SVG icons map (Lucide-style, stroke-based)
 const svgIcons: Record<string, string> = {
@@ -56,6 +58,7 @@ const adminLinks = [
 
 const superadminLinks = [
   { name: "Overview", path: "/superadmin", icon: "dashboard-icon" },
+  { name: "Active Jobs", path: "/masteradmin/jobs", icon: "briefcase-icon" },
   { name: "Fraud & Security", path: "/superadmin/security", icon: "shield-icon" },
   { name: "Users", path: "/superadmin/users", icon: "users-icon" },
   { name: "Employers", path: "/superadmin/employers", icon: "building-icon" },
@@ -65,6 +68,8 @@ const superadminLinks = [
 
 const masteradminLinks = [
   { name: "Overview", path: "/masteradmin", icon: "dashboard-icon" },
+  { name: "Active Jobs", path: "/masteradmin/jobs", icon: "briefcase-icon" },
+  { name: "Job Crawler", path: "/admin/crawler", icon: "search-icon" },
   { name: "Fraud & Security", path: "/masteradmin/security", icon: "shield-icon" },
   { name: "Users", path: "/masteradmin/users", icon: "users-icon" },
   { name: "Employers", path: "/masteradmin/employers", icon: "building-icon" },
@@ -128,7 +133,7 @@ const logoHomePath =
           <polygon points="64,18 104,41 104,87 64,110 24,87 24,41" stroke="var(--color-primary)" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" />
           <path d="M64,64 L64,110 M64,64 L24,41 M64,64 L104,41" stroke="var(--color-primary)" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" />
         </svg>
-        <span class="logo-text">RecruitNest</span>
+        <span class="logo-text">Job<span class="highlight">Ned</span></span>
       </div>
     </a>
     <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close sidebar">✕</button>
@@ -136,68 +141,93 @@ const logoHomePath =
 
   <nav class="sidebar-nav">
     <ul>
-      {
-        links.map((link) => (
+      {payload ? (
+        <>
+          {
+            links.map((link) => (
+              <li>
+                <a
+                  href={link.path}
+                  class={activePath === link.path ? "active" : ""}
+                >
+                  <span class="nav-icon" set:html={svgIcons[link.icon] || svgIcons["dashboard-icon"]} />
+                  {link.name}
+                </a>
+              </li>
+            ))
+          }
           <li>
             <a
-              href={link.path}
-              class={activePath === link.path ? "active" : ""}
+              href={
+                userType === "employer" ? "/employer/settings" :
+                userType === "admin" ? "/admin/settings" :
+                userType === "superadmin" ? "/superadmin/settings" :
+                userType === "masteradmin" ? "/masteradmin/settings" :
+                "/settings"
+              }
+              class={activePath.includes("settings") ? "active" : ""}
             >
-              <span class="nav-icon" set:html={svgIcons[link.icon] || svgIcons["dashboard-icon"]} />
-              {link.name}
+              <span class="nav-icon" set:html={svgIcons["settings-icon"]} />
+              {userType === "admin" || userType === "superadmin" || userType === "masteradmin" ? "User Settings" : "Settings"}
             </a>
           </li>
-        ))
-      }
-      <li>
-        <a
-          href={
-            userType === "employer" ? "/employer/settings" :
-            userType === "admin" ? "/admin/settings" :
-            userType === "superadmin" ? "/superadmin/settings" :
-            userType === "masteradmin" ? "/masteradmin/settings" :
-            "/settings"
-          }
-          class={activePath.includes("settings") ? "active" : ""}
-        >
-          <span class="nav-icon" set:html={svgIcons["settings-icon"]} />
-          {userType === "admin" || userType === "superadmin" || userType === "masteradmin" ? "User Settings" : "Settings"}
-        </a>
-      </li>
-      <li>
-        <a
-          href={
-            userType === "employer" ? "/employer/notifications" :
-            userType === "admin" ? "/admin/notifications" :
-            userType === "superadmin" ? "/superadmin/notifications" :
-            userType === "masteradmin" ? "/masteradmin/notifications" :
-            "/notifications"
-          }
-          class={activePath.includes("notifications") ? "active" : ""}
-        >
-          <span class="nav-icon" set:html={svgIcons["bell-icon"]} />
-          Notifications
-        </a>
-      </li>
-      {
-        userType === "employer" && (
           <li>
             <a
-              href="/employer/billing"
-              class={activePath === "/employer/billing" ? "active" : ""}
+              href={
+                userType === "employer" ? "/employer/notifications" :
+                userType === "admin" ? "/admin/notifications" :
+                userType === "superadmin" ? "/superadmin/notifications" :
+                userType === "masteradmin" ? "/masteradmin/notifications" :
+                "/notifications"
+              }
+              class={activePath.includes("notifications") ? "active" : ""}
             >
-              <span class="nav-icon" set:html={svgIcons["credit-card-icon"]} />
-              Billing
+              <span class="nav-icon" set:html={svgIcons["bell-icon"]} />
+              Notifications
             </a>
           </li>
-        )
-      }
-      <li>
-        <a href="/logout" class="logout-link">
-          <span class="nav-icon" set:html={svgIcons["logout-icon"]} />
-          Logout
-        </a>
-      </li>
+          {
+            userType === "employer" && (
+              <li>
+                <a
+                  href="/employer/billing"
+                  class={activePath === "/employer/billing" ? "active" : ""}
+                >
+                  <span class="nav-icon" set:html={svgIcons["credit-card-icon"]} />
+                  Billing
+                </a>
+              </li>
+            )
+          }
+          <li>
+            <a href="/logout" class="logout-link">
+              <span class="nav-icon" set:html={svgIcons["logout-icon"]} />
+              Logout
+            </a>
+          </li>
+        </>
+      ) : (
+        <>
+          <li>
+            <a href="/jobs" class={activePath === "/jobs" ? "active" : ""}>
+              <span class="nav-icon" set:html={svgIcons["search-icon"]} />
+              Find Jobs
+            </a>
+          </li>
+          <li>
+            <a href="/login">
+              <span class="nav-icon" set:html={svgIcons["users-icon"]} />
+              Log In
+            </a>
+          </li>
+          <li>
+            <a href="/register?type=employee">
+              <span class="nav-icon" set:html={svgIcons["star-icon"]} />
+              Create Account
+            </a>
+          </li>
+        </>
+      )}
     </ul>
   </nav>
 </aside>

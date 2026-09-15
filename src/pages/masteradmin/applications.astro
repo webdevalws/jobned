@@ -3,7 +3,7 @@ import { getResumeViewerUrl } from '../../lib/resume-helper';
 import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import { getDb } from "../../lib/db";
 import { applications, users, jobPostings } from "../../db/schema";
-import { eq, desc, asc, and, or, like, ne, notLike, count } from "drizzle-orm";
+import { eq, desc, asc, and, or, like, ne, notLike, count, sql } from "drizzle-orm";
 
 Astro.response.headers.set(
   "Cache-Control",
@@ -41,16 +41,38 @@ if (sortParam === "date_asc") {
 // Build base conditions based on source selection
 const sourceConditions = [];
 
-if (sourceParam === "alightway") {
+if (sourceParam === "sanskar") {
   sourceConditions.push(or(
-    eq(users.userType, "external_applicant"), 
-    like(jobPostings.id, "external_%"),
-    like(applications.notes, "%Alightway%")
+    like(applications.notes, "%Sanskar%"),
+    like(applications.notes, "%sanskar%")
+  ));
+} else if (sourceParam === "alightway") {
+  sourceConditions.push(and(
+    or(
+      eq(users.userType, "external_applicant"), 
+      like(jobPostings.id, "external_%"),
+      like(applications.jobPostingId, "external_%"),
+      like(applications.notes, "%Alightway%"),
+      like(applications.notes, "%alightway%"),
+      like(applications.notes, "%External%"),
+      like(applications.notes, "%external%")
+    ),
+    notLike(applications.notes, "%Sanskar%"),
+    notLike(applications.notes, "%sanskar%")
   ));
 } else if (sourceParam === "platform") {
   sourceConditions.push(and(
-    ne(users.userType, "external_applicant"), 
-    notLike(jobPostings.id, "external_%")
+    or(ne(users.userType, "external_applicant"), sql`${users.userType} IS NULL`), 
+    notLike(applications.jobPostingId, "external_%"),
+    or(
+      sql`${applications.notes} IS NULL`,
+      and(
+        notLike(applications.notes, "%Alightway%"),
+        notLike(applications.notes, "%alightway%"),
+        notLike(applications.notes, "%Sanskar%"),
+        notLike(applications.notes, "%sanskar%")
+      )
+    )
   ));
 }
 
@@ -59,20 +81,20 @@ const baseSourceWhere = sourceConditions.length > 0 ? and(...sourceConditions) :
 // Fetch distinct positions with counts for current source scope
 const availablePositions = await db
   .select({
-    jobTitle: jobPostings.jobTitle,
+    jobTitle: sql<string>`COALESCE(${jobPostings.jobTitle}, ${applications.jobPostingId})`,
     count: count(applications.id)
   })
   .from(applications)
-  .innerJoin(users, eq(applications.applicantId, users.id))
-  .innerJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
+  .leftJoin(users, eq(applications.applicantId, users.id))
+  .leftJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
   .where(baseSourceWhere)
-  .groupBy(jobPostings.jobTitle)
+  .groupBy(sql`COALESCE(${jobPostings.jobTitle}, ${applications.jobPostingId})`)
   .orderBy(desc(count(applications.id)));
 
 // Apply Position Filter condition if a specific position is selected
 const finalConditions = [...sourceConditions];
 if (positionParam && positionParam !== "all") {
-  finalConditions.push(eq(jobPostings.jobTitle, positionParam));
+  finalConditions.push(sql`COALESCE(${jobPostings.jobTitle}, ${applications.jobPostingId}) = ${positionParam}`);
 }
 
 const whereClause = finalConditions.length > 0 ? and(...finalConditions) : undefined;
@@ -88,8 +110,8 @@ const allApplications = await db
     applicantEmail: users.email,
     applicantPhone: users.phone,
     userType: users.userType,
-    jobTitle: jobPostings.jobTitle,
-    jobId: jobPostings.id,
+    jobTitle: sql<string>`COALESCE(${jobPostings.jobTitle}, ${applications.jobPostingId})`,
+    jobId: applications.jobPostingId,
     jobIsDeleted: jobPostings.isDeleted,
     appIsDeleted: applications.isDeleted,
     resumeUrl: applications.resumeUrl,
@@ -98,8 +120,8 @@ const allApplications = await db
     customAnswers: applications.customAnswers,
   })
   .from(applications)
-  .innerJoin(users, eq(applications.applicantId, users.id))
-  .innerJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
+  .leftJoin(users, eq(applications.applicantId, users.id))
+  .leftJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
   .where(whereClause)
   .orderBy(orderByClause);
 
@@ -107,24 +129,55 @@ const allApplications = await db
 const alightwayCountRes = await db
   .select({ count: count() })
   .from(applications)
-  .innerJoin(users, eq(applications.applicantId, users.id))
-  .innerJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
+  .leftJoin(users, eq(applications.applicantId, users.id))
+  .leftJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
+  .where(and(
+    or(
+      eq(users.userType, "external_applicant"), 
+      like(jobPostings.id, "external_%"),
+      like(applications.jobPostingId, "external_%"),
+      like(applications.notes, "%Alightway%"),
+      like(applications.notes, "%alightway%"),
+      like(applications.notes, "%External%"),
+      like(applications.notes, "%external%")
+    ),
+    notLike(applications.notes, "%Sanskar%"),
+    notLike(applications.notes, "%sanskar%")
+  ));
+
+const sanskarCountRes = await db
+  .select({ count: count() })
+  .from(applications)
+  .leftJoin(users, eq(applications.applicantId, users.id))
+  .leftJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
   .where(or(
-    eq(users.userType, "external_applicant"), 
-    like(jobPostings.id, "external_%"),
-    like(applications.notes, "%Alightway%")
+    like(applications.notes, "%Sanskar%"),
+    like(applications.notes, "%sanskar%")
   ));
 
 const platformCountRes = await db
   .select({ count: count() })
   .from(applications)
-  .innerJoin(users, eq(applications.applicantId, users.id))
-  .innerJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
-  .where(and(ne(users.userType, "external_applicant"), notLike(jobPostings.id, "external_%")));
+  .leftJoin(users, eq(applications.applicantId, users.id))
+  .leftJoin(jobPostings, eq(applications.jobPostingId, jobPostings.id))
+  .where(and(
+    or(ne(users.userType, "external_applicant"), sql`${users.userType} IS NULL`), 
+    notLike(applications.jobPostingId, "external_%"),
+    or(
+      sql`${applications.notes} IS NULL`,
+      and(
+        notLike(applications.notes, "%Alightway%"),
+        notLike(applications.notes, "%alightway%"),
+        notLike(applications.notes, "%Sanskar%"),
+        notLike(applications.notes, "%sanskar%")
+      )
+    )
+  ));
 
 const totalAlightwayApps = alightwayCountRes[0]?.count || 0;
+const totalSanskarApps = sanskarCountRes[0]?.count || 0;
 const totalPlatformApps = platformCountRes[0]?.count || 0;
-const totalAppsAll = totalAlightwayApps + totalPlatformApps;
+const totalAppsAll = totalAlightwayApps + totalSanskarApps + totalPlatformApps;
 const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.count, 0);
 ---
 
@@ -147,9 +200,9 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
             </svg>
           </div>
           <div>
-            <h1>Alightway & Platform Applications</h1>
+            <h1>External & Platform Applications</h1>
             <p class="text-muted" style="margin: 0; font-size: 0.875rem;">
-              Manage incoming applications from your live website (Alightway) and platform.
+              Manage incoming applications from your live websites (Alightway & Sanskar Construction) and JobNed platform.
             </p>
           </div>
         </div>
@@ -167,8 +220,8 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
     <div class="api-notice-card mb-4">
       <div class="api-notice-icon">🌐</div>
       <div class="api-notice-content">
-        <strong>Alightway Live Website Submissions Active</strong>
-        <p>Applications submitted on your live website <em>(Alightway)</em> automatically sync to this MasterAdmin panel via the External Webhook API endpoint below.</p>
+        <strong>External Website Sync Active (Alightway & Sanskar Construction)</strong>
+        <p>Applications submitted on <em>Alightway</em> and <em>Sanskar Construction</em> sync automatically via this API endpoint.</p>
       </div>
       <div class="api-code-pill">
         <code>POST /api/external/submit-application</code>
@@ -180,13 +233,19 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
     <div class="source-tabs-row mb-3">
       <a href={`/masteradmin/applications?source=alightway&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class={`tab-pill ${sourceParam === 'alightway' ? 'active-tab' : ''}`}>
         <span class="tab-icon">🌐</span>
-        <span>Alightway Live Website</span>
+        <span>Alightway Website</span>
         <span class="tab-count-badge">{totalAlightwayApps}</span>
+      </a>
+
+      <a href={`/masteradmin/applications?source=sanskar&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class={`tab-pill ${sourceParam === 'sanskar' ? 'active-tab' : ''}`}>
+        <span class="tab-icon">🏗️</span>
+        <span>Sanskar Construction</span>
+        <span class="tab-count-badge">{totalSanskarApps}</span>
       </a>
 
       <a href={`/masteradmin/applications?source=platform&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class={`tab-pill ${sourceParam === 'platform' ? 'active-tab' : ''}`}>
         <span class="tab-icon">🏢</span>
-        <span>RecruitNest Platform</span>
+        <span>JobNed Platform</span>
         <span class="tab-count-badge">{totalPlatformApps}</span>
       </a>
 
@@ -279,13 +338,15 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
               </tr>
             ) : (
               allApplications.map((app) => {
-                const isAlightway = app.userType === "external_applicant" || (app.jobId && app.jobId.startsWith("external_")) || (app.notes && app.notes.includes("Alightway"));
+                const notesStr = (app.notes || "").toLowerCase();
+                const isSanskar = notesStr.includes("sanskar");
+                const isAlightway = !isSanskar && (app.userType === "external_applicant" || (app.jobId && app.jobId.startsWith("external_")) || notesStr.includes("alightway") || notesStr.includes("external"));
 
                 return (
                   <tr class="app-row">
                     <td>
-                      <span class={`source-tag ${isAlightway ? 'tag-alightway' : 'tag-platform'}`}>
-                        {isAlightway ? '🌐 Alightway Website' : '🏢 RecruitNest Platform'}
+                      <span class={`source-tag ${isSanskar ? 'tag-sanskar' : isAlightway ? 'tag-alightway' : 'tag-platform'}`}>
+                        {isSanskar ? '🏗️ Sanskar Website' : isAlightway ? '🌐 Alightway Website' : '🏢 JobNed Platform'}
                       </span>
                     </td>
                     <td>
@@ -302,8 +363,6 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                     </td>
                     <td>
                       <span class="job-title-txt">{app.jobTitle}</span>
-                      {app.jobIsDeleted && <span style="font-size: 0.65rem; background: rgba(239, 68, 68, 0.15); color: #ef4444; padding: 0.15rem 0.4rem; border-radius: 4px; margin-left: 0.3rem; vertical-align: middle;">Deleted Job</span>}
-                      {app.appIsDeleted && <span style="font-size: 0.65rem; background: rgba(239, 68, 68, 0.15); color: #ef4444; padding: 0.15rem 0.4rem; border-radius: 4px; margin-left: 0.3rem; vertical-align: middle;">Deleted App</span>}
                     </td>
                     <td>
                       <span class={`status-badge status-${app.status}`}>
@@ -355,9 +414,9 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                           </div>
 
                           <div class="dialog-body">
-                            <div class="dialog-source-bar mb-3">
-                              <span class={`source-tag ${isAlightway ? 'tag-alightway' : 'tag-platform'}`}>
-                                {isAlightway ? '🌐 Submitted via Alightway Live Website' : '🏢 Submitted via RecruitNest Platform'}
+                             <div class="dialog-source-bar mb-3">
+                              <span class={`source-tag ${isSanskar ? 'tag-sanskar' : isAlightway ? 'tag-alightway' : 'tag-platform'}`}>
+                                {isSanskar ? '🏗️ Submitted via Sanskar Construction' : isAlightway ? '🌐 Submitted via Alightway Live Website' : '🏢 Submitted via JobNed Platform'}
                               </span>
                             </div>
 
@@ -728,6 +787,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
     font-weight: 700;
     white-space: nowrap;
   }
+  .tag-sanskar { background: rgba(240, 87, 34, 0.12); color: #F05722; border: 1px solid rgba(240, 87, 34, 0.3); }
   .tag-alightway { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); }
   .tag-platform { background: rgba(168, 85, 247, 0.12); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.25); }
 

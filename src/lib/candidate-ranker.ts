@@ -124,9 +124,11 @@ export async function rankCandidateForJob(candidate: CandidateProfile, job: JobC
     skillScore = Math.round(matchRatio * 40);
   } else if (normalizedCandSkills.length > 0) {
     // If job didn't specify formal requirements, calculate overlap with job description
-    const overlapCount = normalizedCandSkills.filter(s => jobFullText.includes(s)).length;
-    const ratio = Math.min(overlapCount / Math.max(normalizedCandSkills.length, 1), 1.0);
-    skillScore = Math.round(ratio * 35);
+    const overlapCount = normalizedCandSkills.filter(s => jobFullText.includes(s) || jobFullText.includes(s.replace(/s$/, ''))).length;
+    // Don't penalize candidates who have many skills when applying for specialized jobs
+    const expectedSkillsForJob = Math.min(3, normalizedCandSkills.length);
+    const ratio = Math.min(overlapCount / Math.max(expectedSkillsForJob, 1), 1.0);
+    skillScore = Math.round(ratio * 40);
   }
 
   // --- PILLAR 2: Experience Level Fit (Max 25 pts) ---

@@ -4,7 +4,7 @@ import { users } from '../../../db/schema';
 import { verifyPassword, signToken } from '../../../lib/auth';
 import { eq } from 'drizzle-orm';
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request, locals, cookies }) => {
   try {
     const data = await request.json();
     const { email, password } = data;
@@ -13,9 +13,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Email and password required' }), { status: 400 });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+    const altEmail = cleanEmail.endsWith('@jobned.com')
+      ? cleanEmail.replace('@jobned.com', '@recruitnest.com')
+      : cleanEmail.endsWith('@recruitnest.com')
+        ? cleanEmail.replace('@recruitnest.com', '@jobned.com')
+        : cleanEmail;
+
     const db = getDb();
 
-    const user = await db.select().from(users).where(eq(users.email, email)).get();
+    let user = await db.select().from(users).where(eq(users.email, cleanEmail)).get();
+    if (!user && altEmail !== cleanEmail) {
+      user = await db.select().from(users).where(eq(users.email, altEmail)).get();
+    }
+    if (!user) {
+      // Fallback case-insensitive search
+      const allUsers = await db.select().from(users);
+      user = allUsers.find(u => u.email.toLowerCase() === cleanEmail || u.email.toLowerCase() === altEmail);
+    }
+
     if (!user) {
       return new Response(JSON.stringify({ error: 'Invalid credentials' }), { status: 401 });
     }
@@ -30,9 +46,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Invalid credentials' }), { status: 401 });
     }
 
-    // Note: SRS requires account verification to use platform features, 
-    // but they can still log in to see their "pending" status.
-
     // Generate JWT
     const token = await signToken({
       userId: user.id,
@@ -40,9 +53,36 @@ export const POST: APIRoute = async ({ request, locals }) => {
       verifiedStatus: user.verifiedStatus as 'pending' | 'verified' | 'rejected'
     });
 
+    // Set secure HTTP-only cookie
+    cookies.set('auth_token', token, {
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 86400 * 7
+    });
+
+    let requirePayment = false;
+    let redirectUrl: string | null = null;
+
+    if (user.userType === 'employer' && user.subscriptionStatus !== 'active') {
+      try {
+        const { plans } = await import('../../../db/schema');
+        const userPlan = await db.select().from(plans).where(eq(plans.planId, user.planId || 'P001')).get();
+        if (userPlan && userPlan.price > 0) {
+          requirePayment = true;
+          redirectUrl = `/checkout?plan=${encodeURIComponent(user.planId || 'P001')}`;
+        }
+      } catch (pErr) {
+        console.error('Failed to check user plan on login:', pErr);
+      }
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       token,
+      requirePayment,
+      redirectUrl,
       user: {
         id: user.id,
         email: user.email,
@@ -50,7 +90,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         lastName: user.lastName,
         userType: user.userType,
         verifiedStatus: user.verifiedStatus,
-        planId: user.planId
+        planId: user.planId,
+        subscriptionStatus: user.subscriptionStatus
       }
     }), { 
       status: 200,

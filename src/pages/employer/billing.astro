@@ -107,7 +107,10 @@ const jobUsagePercent = Math.min(100, Math.round((activeJobCount / (maxJobs || 1
 const allEmployerApps = await db.select().from(applications).where(eq(applications.employerId, payload.userId)).all();
 const totalAppsCount = allEmployerApps.length;
 const maxResumes = activePlan.resumeLimit;
-const resumeUsagePercent = maxResumes >= 999999 ? 15 : Math.min(100, Math.round((totalAppsCount / maxResumes) * 100));
+const resumeUsagePercent = maxResumes >= 999999 ? 0 : Math.min(100, Math.round((totalAppsCount / (maxResumes || 1)) * 100));
+
+const maxCandidateApps = activePlan.candidateApplyLimit || 200;
+const candidateAppsUsagePercent = maxCandidateApps >= 999999 ? 0 : Math.min(100, Math.round((totalAppsCount / (maxCandidateApps || 1)) * 100));
 
 const formatPrice = (price: number | null | undefined, currency: string | null | undefined) => {
   if (price === null || price === undefined || price <= 0) return '$0';
@@ -211,10 +214,10 @@ const formatDate = (dateVal: any) => {
         <div class="quota-item mt-3">
           <div class="quota-meta">
             <span class="quota-label">Monthly Candidate Applications Capacity</span>
-            <span class="quota-count"><strong>Active</strong> / {formatLimit(activePlan.candidateApplyLimit)} per cycle</span>
+            <span class="quota-count"><strong>{totalAppsCount}</strong> / {formatLimit(maxCandidateApps)} per cycle</span>
           </div>
           <div class="progress-bar-bg">
-            <div class="progress-bar-fill purple" style="width: 35%;"></div>
+            <div class="progress-bar-fill purple" style={`width: ${candidateAppsUsagePercent}%;`}></div>
           </div>
         </div>
       </div>

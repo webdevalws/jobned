@@ -22,7 +22,7 @@ try {
     .select({
       id: applications.id,
       status: applications.status,
-      coverLetter: applications.coverLetter,
+      coverLetter: applications.coverLetter,                                               
       resumeUrl: applications.resumeUrl,
       aiScore: applications.aiScore,
       aiSummary: applications.aiSummary,
@@ -156,14 +156,8 @@ function salaryDisplay(min: number | null, max: number | null, currency: string 
               </div>
             </div>
 
-            <!-- Middle Row: AI Fit & Compensation -->
+            <!-- Middle Row: Compensation & Meta -->
             <div class="app-card-mid">
-              {app.aiScore !== null && (
-                <div class="ai-fit-pill">
-                  <span class="ai-spark">✨</span>
-                  <span class="ai-txt">Compatibility Score: <strong>{app.aiScore}%</strong></span>
-                </div>
-              )}
               {salaryDisplay(app.salaryMin, app.salaryMax, app.salaryCurrency) && (
                 <span class="salary-tag">💰 {salaryDisplay(app.salaryMin, app.salaryMax, app.salaryCurrency)}</span>
               )}

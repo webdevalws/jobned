@@ -51,45 +51,45 @@ const recentEmployers = await db.select({
 
   <!-- Key Metrics Row -->
   <div class="metrics-grid mb-4">
-    <div class="metric-card">
+    <a href="/masteradmin/users" class="metric-card metric-card-link">
       <div class="metric-icon-wrap icon-blue">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
       </div>
       <div class="metric-info">
         <span class="metric-val">{totalUsers}</span>
-        <span class="metric-label">Total Accounts</span>
+        <span class="metric-label">Total Accounts ↗</span>
       </div>
-    </div>
+    </a>
 
-    <div class="metric-card">
+    <a href="/masteradmin/employers" class="metric-card metric-card-link">
       <div class="metric-icon-wrap icon-purple">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
       </div>
       <div class="metric-info">
         <span class="metric-val">{totalEmployers}</span>
-        <span class="metric-label">Total Employers</span>
+        <span class="metric-label">Total Employers ↗</span>
       </div>
-    </div>
+    </a>
 
-    <div class="metric-card">
+    <a href="/masteradmin/jobs" class="metric-card metric-card-link">
       <div class="metric-icon-wrap icon-green">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
       </div>
       <div class="metric-info">
         <span class="metric-val">{activeJobs}</span>
-        <span class="metric-label">Live Active Jobs</span>
+        <span class="metric-label">Live Active Jobs ↗</span>
       </div>
-    </div>
+    </a>
 
-    <div class="metric-card">
+    <a href="/masteradmin/employers" class="metric-card metric-card-link">
       <div class="metric-icon-wrap icon-yellow">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
       </div>
       <div class="metric-info">
         <span class="metric-val">{pendingVerifications}</span>
-        <span class="metric-label">Pending Employer Verifications</span>
+        <span class="metric-label">Pending Verifications ↗</span>
       </div>
-    </div>
+    </a>
   </div>
 
   <!-- Recent Registered Employers Table Section -->

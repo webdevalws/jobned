@@ -18,7 +18,7 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
     <div class="header-titles">
       <span class="badge-tag">Recruiter Workspace</span>
       <h1>Job Postings & Roles</h1>
-      <p class="subtitle">Create, monitor, and update your active company vacancies in real-time.</p>
+      <p class="subtitle">Create, monitor, filter, and update your active company vacancies in real-time.</p>
     </div>
     <a href="/employer/post-job" class="btn btn-primary btn-glow">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -26,12 +26,74 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
     </a>
   </div>
 
+  {jobs.length > 0 && (
+    <div class="controls-toolbar-card mb-4">
+      <div class="controls-row">
+        <div class="control-group">
+          <label for="jobSearchInput" class="control-label">Search Jobs:</label>
+          <div class="search-input-box">
+            <span class="control-icon">🔍</span>
+            <input 
+              type="text" 
+              id="jobSearchInput" 
+              class="control-input" 
+              placeholder="Search by title, city, or type..." 
+            />
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label for="filterStatusSelect" class="control-label">Status:</label>
+          <select id="filterStatusSelect" class="control-select">
+            <option value="all">All Statuses</option>
+            <option value="published">● Active</option>
+            <option value="draft">● Draft</option>
+            <option value="closed">● Inactive</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="filterTypeSelect" class="control-label">Work Type:</label>
+          <select id="filterTypeSelect" class="control-select">
+            <option value="all">All Work Types</option>
+            <option value="full-time">Full-time</option>
+            <option value="part-time">Part-time</option>
+            <option value="contract">Contract</option>
+            <option value="internship">Internship</option>
+            <option value="remote">Remote</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="jobSortSelect" class="control-label">Sort By:</label>
+          <select id="jobSortSelect" class="control-select sort-select">
+            <option value="date-desc">📅 Date: Newest First</option>
+            <option value="date-asc">⏳ Date: Oldest First</option>
+            <option value="apps-desc">📈 Apps: Most First</option>
+            <option value="apps-asc">📉 Apps: Least First</option>
+            <option value="title-asc">🔤 Title: A to Z</option>
+            <option value="title-desc">🔤 Title: Z to A</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="toolbar-footer">
+        <span class="results-count-txt">
+          Showing <strong id="visibleJobsCount">{jobs.length}</strong> of {jobs.length} job postings
+        </span>
+        <button type="button" id="resetJobFiltersBtn" class="btn-reset-toolbar">
+          🔄 Reset Filters
+        </button>
+      </div>
+    </div>
+  )}
+
   <div class="jobs-container">
     {jobs.length === 0 ? (
       <div class="empty-state">
         <div class="empty-icon">📢</div>
         <h3>No Job Openings Yet</h3>
-        <p>Start finding top talent by publishing your first job opening on RecruitNest.</p>
+        <p>Start finding top talent by publishing your first job opening on JobNed.</p>
         <a href="/employer/post-job" class="btn btn-primary mt-3">+ Post a Job</a>
       </div>
     ) : (
@@ -39,75 +101,279 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
         <table class="data-table">
           <thead>
             <tr>
-              <th>Job Information</th>
-              <th>Status Switcher</th>
-              <th>Applications</th>
-              <th>Posted Date</th>
-              <th>Quick Actions</th>
+              <th data-sort-col="title" style="cursor: pointer;" title="Click to Sort by Job Title">Job Information ↕️</th>
+              <th data-sort-col="status" style="cursor: pointer;" title="Click to Sort by Status">Status Switcher ↕️</th>
+              <th data-sort-col="apps" style="cursor: pointer;" title="Click to Sort by Applicant Count">Applications ↕️</th>
+              <th data-sort-col="date" style="cursor: pointer;" title="Click to Sort by Posted Date">Posted Date ↕️</th>
+              <th class="col-actions">Quick Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {jobs.map((job) => (
-              <tr class="job-row">
-                <td class="col-info">
-                  <a href={`/jobs/${job.id}`} class="job-title-link">
-                    <strong>{job.jobTitle}</strong>
-                  </a>
-                  <div class="job-sub-meta">
-                    <span>📍 {job.locationCity || (job.locationRemote ? 'Remote' : 'Onsite')}</span>
-                    <span>•</span>
-                    <span>⏱ {job.employmentType || 'Full-time'}</span>
-                    <span>•</span>
-                    <span>🎯 {job.experienceLevel || 'Mid Level'}</span>
-                  </div>
-                </td>
-                <td class="col-status">
-                  <div class="custom-select-wrap">
-                    <select class={`status-select select-status-${job.status}`} data-job-id={job.id}>
-                      <option value="published" selected={job.status === 'published'}>● Active</option>
-                      <option value="draft" selected={job.status === 'draft'}>● Draft</option>
-                      <option value="closed" selected={job.status === 'closed'}>● Inactive</option>
-                    </select>
-                  </div>
-                </td>
-                <td class="col-apps">
-                  <a href={`/employer/applications?jobId=${job.id}`} class="app-count-badge" title="View candidates for this job">
-                    <span class="app-num">{job.applicationsCount || 0}</span>
-                    <span class="app-txt">Applicants ↗</span>
-                  </a>
-                </td>
-                <td class="col-date">
-                  <span class="date-text">
-                    {new Date(job.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                </td>
-                <td class="col-actions">
-                  <span class="mobile-date-text">
-                    {new Date(job.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                  <div class="actions">
-                    <a href={`/jobs/${job.id}`} class="btn-action-icon" title="View Public Job Page">
-                      <span>👁️</span>
+          <tbody id="jobsTbody">
+            {jobs.map((job) => {
+              const dateTs = new Date(job.createdAt).getTime();
+              const formattedDate = new Date(job.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+              const jobCity = job.locationCity || (job.locationRemote ? 'Remote' : 'Onsite');
+              const empType = job.employmentType || 'Full-time';
+              const expLevel = job.experienceLevel || 'Mid Level';
+
+              return (
+                <tr 
+                  class="job-row"
+                  data-job-id={job.id}
+                  data-title={(job.jobTitle || '').toLowerCase()}
+                  data-city={jobCity.toLowerCase()}
+                  data-type={empType.toLowerCase()}
+                  data-level={expLevel.toLowerCase()}
+                  data-status={job.status}
+                  data-apps={job.applicationsCount || 0}
+                  data-date-ts={dateTs}
+                >
+                  <td class="col-info">
+                    <a href={`/jobs/${job.id}`} class="job-title-link">
+                      <strong>{job.jobTitle}</strong>
                     </a>
-                    <a href={`/employer/jobs/${job.id}/edit`} class="btn-action-icon" title="Edit Job Posting">
-                      <span>✏️</span>
+                    <div class="job-sub-meta">
+                      <span>📍 {jobCity}</span>
+                      <span>•</span>
+                      <span>⏱ {empType}</span>
+                      <span>•</span>
+                      <span>🎯 {expLevel}</span>
+                    </div>
+                  </td>
+                  <td class="col-status">
+                    <div class="custom-select-wrap">
+                      <select class={`status-select select-status-${job.status}`} data-job-id={job.id}>
+                        <option value="published" selected={job.status === 'published'}>● Active</option>
+                        <option value="draft" selected={job.status === 'draft'}>● Draft</option>
+                        <option value="closed" selected={job.status === 'closed'}>● Inactive</option>
+                      </select>
+                    </div>
+                  </td>
+                  <td class="col-apps">
+                    <a href={`/employer/applications?jobId=${job.id}`} class="app-count-badge" title="View candidates for this job">
+                      <span class="app-num">{job.applicationsCount || 0}</span>
+                      <span class="app-txt">Applicants ↗</span>
                     </a>
-                    <button class="btn-action-icon btn-delete-job" data-job-id={job.id} title="Delete Job Posting" style="cursor: pointer; border: none; color: inherit; font-size: inherit;">
-                      <span>🗑️</span>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td class="col-date">
+                    <span class="date-text">
+                      {formattedDate}
+                    </span>
+                  </td>
+                  <td class="col-actions">
+                    <span class="mobile-date-text">
+                      {formattedDate}
+                    </span>
+                    <div class="actions">
+                      <a href={`/jobs/${job.id}`} class="btn-action-icon" title="View Public Job Page">
+                        <span>👁️</span>
+                      </a>
+                      <a href={`/employer/jobs/${job.id}/edit`} class="btn-action-icon" title="Edit Job Posting">
+                        <span>✏️</span>
+                      </a>
+                      <button class="btn-action-icon btn-delete-job" data-job-id={job.id} title="Delete Job Posting" style="cursor: pointer; border: none; color: inherit; font-size: inherit;">
+                        <span>🗑️</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+        <div id="noJobMatchesMsg" class="empty-state" style="display: none; padding: 3rem 1.5rem;">
+          <div class="empty-icon">🔍</div>
+          <h3>No matching job postings found</h3>
+          <p>Try adjusting your search terms or filter settings.</p>
+        </div>
       </div>
     )}
   </div>
 </DashboardLayout>
 
+<!-- Client-side Interactive Search, Sorting & Management Script -->
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('jobSearchInput');
+    const statusSelect = document.getElementById('filterStatusSelect');
+    const typeSelect = document.getElementById('filterTypeSelect');
+    const sortSelect = document.getElementById('jobSortSelect');
+    const resetBtn = document.getElementById('resetJobFiltersBtn');
+    const visibleCountEl = document.getElementById('visibleJobsCount');
+    const tbody = document.getElementById('jobsTbody');
+    const noMatchesMsg = document.getElementById('noJobMatchesMsg');
+
+    if (tbody) {
+      const allRows = Array.from(tbody.querySelectorAll('.job-row'));
+
+      function updateJobList() {
+        const q = (searchInput?.value || '').toLowerCase().trim();
+        const selectedStatus = statusSelect?.value || 'all';
+        const selectedType = typeSelect?.value || 'all';
+        const selectedSort = sortSelect?.value || 'date-desc';
+
+        let visibleRows = [];
+
+        allRows.forEach(row => {
+          const title = row.getAttribute('data-title') || '';
+          const city = row.getAttribute('data-city') || '';
+          const type = row.getAttribute('data-type') || '';
+          const level = row.getAttribute('data-level') || '';
+          const status = row.getAttribute('data-status') || '';
+
+          const matchesSearch = !q || title.includes(q) || city.includes(q) || type.includes(q) || level.includes(q);
+          const matchesStatus = selectedStatus === 'all' || status === selectedStatus;
+          const matchesType = selectedType === 'all' || type.includes(selectedType);
+
+          if (matchesSearch && matchesStatus && matchesType) {
+            row.style.display = '';
+            visibleRows.push(row);
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        // Sort visible rows
+        visibleRows.sort((a, b) => {
+          const dateA = parseInt(a.getAttribute('data-date-ts') || '0', 10);
+          const dateB = parseInt(b.getAttribute('data-date-ts') || '0', 10);
+          const appsA = parseInt(a.getAttribute('data-apps') || '0', 10);
+          const appsB = parseInt(b.getAttribute('data-apps') || '0', 10);
+          const titleA = a.getAttribute('data-title') || '';
+          const titleB = b.getAttribute('data-title') || '';
+
+          switch (selectedSort) {
+            case 'date-desc':
+              return dateB - dateA;
+            case 'date-asc':
+              return dateA - dateB;
+            case 'apps-desc':
+              return appsB - appsA;
+            case 'apps-asc':
+              return appsA - appsB;
+            case 'title-asc':
+              return titleA.localeCompare(titleB);
+            case 'title-desc':
+              return titleB.localeCompare(titleA);
+            default:
+              return dateB - dateA;
+          }
+        });
+
+        // Re-append sorted rows
+        visibleRows.forEach(r => tbody.appendChild(r));
+
+        if (visibleCountEl) visibleCountEl.textContent = visibleRows.length;
+        if (noMatchesMsg) {
+          noMatchesMsg.style.display = visibleRows.length === 0 && allRows.length > 0 ? 'block' : 'none';
+        }
+      }
+
+      searchInput?.addEventListener('input', updateJobList);
+      statusSelect?.addEventListener('change', updateJobList);
+      typeSelect?.addEventListener('change', updateJobList);
+      sortSelect?.addEventListener('change', updateJobList);
+
+      const tableHeaderCols = document.querySelectorAll('th[data-sort-col]');
+      tableHeaderCols.forEach(th => {
+        th.addEventListener('click', () => {
+          const col = th.getAttribute('data-sort-col');
+          if (col === 'title') {
+            sortSelect.value = sortSelect.value === 'title-asc' ? 'title-desc' : 'title-asc';
+          } else if (col === 'apps') {
+            sortSelect.value = sortSelect.value === 'apps-desc' ? 'apps-asc' : 'apps-desc';
+          } else if (col === 'date') {
+            sortSelect.value = sortSelect.value === 'date-desc' ? 'date-asc' : 'date-desc';
+          } else if (col === 'status') {
+            sortSelect.value = sortSelect.value === 'apps-desc' ? 'date-desc' : 'apps-desc';
+          }
+          updateJobList();
+        });
+      });
+
+      resetBtn?.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        if (statusSelect) statusSelect.value = 'all';
+        if (typeSelect) typeSelect.value = 'all';
+        if (sortSelect) sortSelect.value = 'date-desc';
+        updateJobList();
+      });
+
+      updateJobList();
+    }
+
+    // Status Change & Job Deletion Handlers
+    const statusSelects = document.querySelectorAll('.status-select');
+    const deleteBtns = document.querySelectorAll('.btn-delete-job');
+
+    deleteBtns.forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        if (!confirm('Are you sure you want to delete this job posting? This action cannot be undone.')) return;
+        const target = e.currentTarget;
+        const jobId = target?.getAttribute('data-job-id');
+        if (!jobId) return;
+
+        try {
+          const res = await fetch(`/api/employer/jobs/${jobId}`, {
+            method: 'DELETE'
+          });
+
+          if (res.ok) {
+            // @ts-ignore
+            if (window.showToast) window.showToast('Job deleted successfully!');
+            window.location.reload();
+          } else {
+            const result = await res.json();
+            // @ts-ignore
+            if (window.showToast) window.showToast(result.error || 'Failed to delete job', 'error');
+          }
+        } catch (err) {
+          // @ts-ignore
+          if (window.showToast) window.showToast('An error occurred while deleting', 'error');
+        }
+      });
+    });
+
+    statusSelects.forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const target = e.target;
+        const jobId = target?.getAttribute('data-job-id');
+        const status = target?.value;
+
+        if (!jobId) return;
+
+        try {
+          const res = await fetch('/api/employer/jobs/status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ jobId, status })
+          });
+
+          if (res.ok) {
+            // @ts-ignore
+            if (window.showToast) window.showToast('Job status updated successfully!');
+            window.location.reload();
+          } else {
+            const result = await res.json();
+            // @ts-ignore
+            if (window.showToast) window.showToast(result.error || 'Failed to update status', 'error');
+            window.location.reload();
+          }
+        } catch (err) {
+          // @ts-ignore
+          if (window.showToast) window.showToast('An error occurred while updating job status', 'error');
+          window.location.reload();
+        }
+      });
+    });
+  });
+</script>
+
 <style>
-  .mb-4 { margin-bottom: 1.75rem; }
+  .mb-4 { margin-bottom: 1.5rem; }
   .mt-3 { margin-top: 1rem; }
 
   .jobs-header {
@@ -148,6 +414,142 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
     box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
   }
 
+  /* Controls Toolbar Card */
+  .controls-toolbar-card {
+    background: var(--color-surface, #FFFFFF);
+    border: 1px solid var(--color-border, #E2E8F0);
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .controls-row {
+    display: grid;
+    grid-template-columns: 1.8fr 1fr 1fr 1.2fr;
+    gap: 0.85rem;
+    align-items: flex-start;
+  }
+
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  .control-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted, #64748B);
+    height: 16px;
+    line-height: 16px;
+  }
+
+  .search-input-box,
+  .control-select {
+    height: 42px;
+    min-height: 42px;
+    box-sizing: border-box;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    width: 100%;
+  }
+
+  .search-input-box {
+    display: flex;
+    align-items: center;
+    background: var(--color-bg, #F8FAFC);
+    border: 1px solid var(--color-border, #CBD5E1);
+    padding: 0 0.85rem;
+    transition: all 0.2s ease;
+  }
+  .search-input-box:focus-within {
+    border-color: var(--color-primary, #6366F1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+
+  .control-icon {
+    font-size: 1rem;
+    opacity: 0.6;
+    margin-right: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .control-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 0.88rem;
+    color: var(--color-text-main, #0F172A);
+    outline: none;
+    font-family: inherit;
+  }
+  .control-input::placeholder {
+    color: var(--color-text-muted, #94A3B8);
+  }
+
+  .control-select {
+    padding: 0 1.8rem 0 0.85rem;
+    border: 1px solid var(--color-border, #CBD5E1);
+    background-color: var(--color-bg, #F8FAFC);
+    color: var(--color-text-main, #0F172A);
+    outline: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    font-family: inherit;
+  }
+  .control-select:focus {
+    border-color: var(--color-primary, #6366F1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+
+  .sort-select {
+    font-weight: 600;
+    background-color: rgba(99, 102, 241, 0.04);
+  }
+
+  .toolbar-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--color-border, #E2E8F0);
+    font-size: 0.85rem;
+  }
+
+  .results-count-txt {
+    color: var(--color-text-muted, #64748B);
+  }
+  .results-count-txt strong {
+    color: var(--color-primary, #6366F1);
+    font-weight: 700;
+  }
+
+  .btn-reset-toolbar {
+    background: none;
+    border: none;
+    color: var(--color-primary, #6366F1);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    transition: background 0.15s ease;
+  }
+  .btn-reset-toolbar:hover {
+    background: rgba(99, 102, 241, 0.08);
+    text-decoration: underline;
+  }
+
   .empty-state {
     padding: 5rem 2rem;
     text-align: center;
@@ -157,7 +559,7 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
     border: 1px solid var(--color-border);
   }
   .empty-icon { font-size: 3rem; margin-bottom: 0.75rem; }
-  .empty-state h3 { margin: 0 0 0.5rem 0; font-size: 1.3rem; }
+  .empty-state h3 { margin: 0 0 0.5rem 0; font-size: 1.3rem; color: var(--color-text-main); }
   .empty-state p { color: var(--color-text-muted); margin: 0; }
 
   .table-responsive {
@@ -331,7 +733,17 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
   }
 
   /* Responsive Mobile Transformations */
+  @media (max-width: 900px) {
+    .controls-row {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
   @media (max-width: 768px) {
+    .controls-row {
+      grid-template-columns: 1fr;
+    }
+
     .jobs-header {
       flex-direction: column !important;
       align-items: flex-start !important;
@@ -404,7 +816,6 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
       white-space: nowrap !important;
     }
 
-    /* Side-by-Side Status Selector and Applicants Count Box */
     .col-status {
       flex: 1 1 calc(50% - 0.375rem) !important;
       min-width: 0 !important;
@@ -425,8 +836,6 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
       width: 100% !important;
       display: block !important;
     }
-
-
 
     .app-count-badge {
       width: 100% !important;
@@ -467,72 +876,3 @@ const jobs = await db.select().from(jobPostings).where(and(eq(jobPostings.employ
     }
   }
 </style>
-
-<script>
-  const statusSelects = document.querySelectorAll('.status-select');
-  const deleteBtns = document.querySelectorAll('.btn-delete-job');
-
-  deleteBtns.forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      if (!confirm('Are you sure you want to delete this job posting? This action cannot be undone.')) return;
-      const target = e.currentTarget as HTMLButtonElement;
-      const jobId = target.getAttribute('data-job-id');
-      if (!jobId) return;
-
-      try {
-        const res = await fetch(`/api/employer/jobs/${jobId}`, {
-          method: 'DELETE'
-        });
-
-        if (res.ok) {
-          // @ts-ignore
-          if (window.showToast) window.showToast('Job deleted successfully!');
-          window.location.reload();
-        } else {
-          const result = await res.json();
-          // @ts-ignore
-          if (window.showToast) window.showToast(result.error || 'Failed to delete job', 'error');
-        }
-      } catch (err) {
-        // @ts-ignore
-        if (window.showToast) window.showToast('An error occurred while deleting', 'error');
-      }
-    });
-  });
-
-  statusSelects.forEach(select => {
-    select.addEventListener('change', async (e) => {
-      const target = e.target as HTMLSelectElement;
-      const jobId = target.getAttribute('data-job-id');
-      const status = target.value;
-
-      if (!jobId) return;
-
-      try {
-        const res = await fetch('/api/employer/jobs/status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({ jobId, status })
-        });
-
-        if (res.ok) {
-          // @ts-ignore
-          if (window.showToast) window.showToast('Job status updated successfully!');
-          window.location.reload();
-        } else {
-          const result = await res.json();
-          // @ts-ignore
-          if (window.showToast) window.showToast(result.error || 'Failed to update status', 'error');
-          window.location.reload();
-        }
-      } catch (err) {
-        // @ts-ignore
-        if (window.showToast) window.showToast('An error occurred while updating job status', 'error');
-        window.location.reload();
-      }
-    });
-  });
-</script>

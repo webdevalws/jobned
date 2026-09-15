@@ -4,7 +4,7 @@ import { users, plans } from '../../../db/schema';
 import { hashPassword, signToken } from '../../../lib/auth';
 import { eq, sql } from 'drizzle-orm';
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request, locals, cookies }) => {
   try {
     const data = await request.json();
     const { email, password, confirmPassword, firstName, lastName, userType, phone, planId } = data;
@@ -13,8 +13,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 });
     }
 
-    if (password.length < 6) {
-      return new Response(JSON.stringify({ error: 'Password must be at least 6 characters long' }), { status: 400 });
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanFirstName = String(firstName).trim().slice(0, 100);
+    const cleanLastName = String(lastName).trim().slice(0, 100);
+    const cleanPhone = phone ? String(phone).trim().slice(0, 25) : null;
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 255) {
+      return new Response(JSON.stringify({ error: 'Invalid email address' }), { status: 400 });
+    }
+
+    if (password.length < 6 || password.length > 128) {
+      return new Response(JSON.stringify({ error: 'Password must be between 6 and 128 characters' }), { status: 400 });
     }
 
     if (confirmPassword && password !== confirmPassword) {
@@ -48,12 +57,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const passwordHash = await hashPassword(password);
     const userId = crypto.randomUUID(); // Cloudflare workers support crypto.randomUUID natively
 
-    // Assign planId, default to Basic (P001) if not provided, and set expiry to 100 years in the future
+    // Assign planId, default to Basic (P001) if not provided
     const finalPlanId = planId || 'P001';
     const planExpiresAt = new Date();
     planExpiresAt.setFullYear(planExpiresAt.getFullYear() + 100);
 
     const initialVerifiedStatus = userType === 'employee' ? 'verified' : 'pending';
+
+    let initialSubscriptionStatus = 'active';
+    let requirePayment = false;
+
+    if (userType === 'employer') {
+      const chosenPlan = await db.select().from(plans).where(eq(plans.planId, finalPlanId)).get();
+      if (chosenPlan && chosenPlan.price > 0) {
+        initialSubscriptionStatus = 'inactive';
+        requirePayment = true;
+      }
+    }
 
     // Insert user
     await db.insert(users).values({
@@ -66,7 +86,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       phone,
       planId: finalPlanId,
       planExpiresAt,
-      subscriptionStatus: 'active',
+      subscriptionStatus: initialSubscriptionStatus,
       verifiedStatus: initialVerifiedStatus,
       isActive: true
     });
@@ -101,10 +121,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
       verifiedStatus: initialVerifiedStatus
     });
 
+    // Set secure HTTP-only cookie
+    cookies.set('auth_token', token, {
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 86400 * 7
+    });
+
     return new Response(JSON.stringify({ 
       success: true, 
       token,
-      message: userType === 'employee' ? 'Registration successful! Welcome to RecruitNest.' : 'Registration successful. Your employer account is being set up.' 
+      requirePayment,
+      planId: finalPlanId,
+      message: userType === 'employee' ? 'Registration successful! Welcome to JobNed.' : 'Registration successful. Your employer account is being set up.' 
     }), { 
       status: 201,
       headers: { 'Content-Type': 'application/json' }

@@ -9,8 +9,8 @@ export const onRequest = defineMiddleware(async ({ cookies, request, locals, red
 
   // Check if it's an API route that requires auth, or protected pages
   const isApiRoute = url.pathname.startsWith('/api/');
-  const isEmployeeRoute = url.pathname.startsWith('/jobs') || url.pathname.startsWith('/applications') || url.pathname.startsWith('/saved') || url.pathname.startsWith('/recommended') || url.pathname.startsWith('/notifications') || url.pathname.startsWith('/settings') || url.pathname.startsWith('/employee');
-  const isDashboard = url.pathname.startsWith('/dashboard') || url.pathname.startsWith('/employer') || url.pathname.startsWith('/admin') || url.pathname.startsWith('/superadmin') || url.pathname.startsWith('/masteradmin') || isEmployeeRoute;
+  const isEmployeeRoute = url.pathname.startsWith('/applications') || url.pathname.startsWith('/saved') || url.pathname.startsWith('/recommended') || url.pathname.startsWith('/notifications') || url.pathname.startsWith('/settings') || url.pathname.startsWith('/employee');
+  const isDashboard = url.pathname.startsWith('/dashboard') || url.pathname.startsWith('/employer') || url.pathname.startsWith('/admin') || url.pathname.startsWith('/superadmin') || url.pathname.startsWith('/masteradmin') || url.pathname.startsWith('/checkout') || isEmployeeRoute;
 
   // Get token from Authorization header or cookies
   const authHeader = request.headers.get('Authorization');
@@ -37,14 +37,12 @@ export const onRequest = defineMiddleware(async ({ cookies, request, locals, red
 
   // Allow public auth & search API routes (no auth required, but user payload attached if present)
   if (
-    url.pathname === '/api/auth/login' || 
-    url.pathname === '/api/auth/register' ||
-    url.pathname === '/api/auth/forgot-password' ||
-    url.pathname === '/api/auth/reset-password' ||
+    url.pathname.startsWith('/api/auth/') ||
     url.pathname.startsWith('/api/external/') ||
     url.pathname.startsWith('/api/resumes/') ||
-    url.pathname === '/api/payments/verify' ||
-    url.pathname === '/api/jobs/search'
+    url.pathname.startsWith('/api/payments/') ||
+    url.pathname.startsWith('/api/jobs') ||
+    url.pathname.startsWith('/api/cron/')
   ) {
     return next();
   }
@@ -99,8 +97,68 @@ export const onRequest = defineMiddleware(async ({ cookies, request, locals, red
       return redirect('/dashboard');
     }
   }
+  
+  // Strict subscription check for employer accounts across all protected pages and API endpoints
+  if (locals.user?.userType === 'employer') {
+    const isExemptEmployerRoute =
+      url.pathname.startsWith('/checkout') ||
+      url.pathname.startsWith('/logout') ||
+      url.pathname.startsWith('/api/payments/') ||
+      url.pathname.startsWith('/api/auth/') ||
+      url.pathname.startsWith('/api/external/') ||
+      url.pathname.startsWith('/employer/public');
 
+    if (!isExemptEmployerRoute) {
+      try {
+        const db = getDb();
+        const currentDbUser = await db.select().from(users).where(eq(users.id, locals.user.userId)).get();
+        if (currentDbUser && currentDbUser.subscriptionStatus !== 'active') {
+          const { plans } = await import('./db/schema');
+          const currentPlan = await db.select().from(plans).where(eq(plans.planId, currentDbUser.planId || 'P001')).get();
+          if (currentPlan && currentPlan.price > 0) {
+            const checkoutUrl = `/checkout?plan=${encodeURIComponent(currentDbUser.planId || 'P001')}`;
+            if (isApiRoute) {
+              return new Response(JSON.stringify({ 
+                error: 'Payment required: Please complete your subscription payment to activate your employer account.',
+                requirePayment: true,
+                redirectUrl: checkoutUrl 
+              }), {
+                status: 402,
+                headers: { 'Content-Type': 'application/json' }
+              });
+            }
+            return redirect(checkoutUrl);
+          }
+        }
+      } catch (subErr) {
+        console.error('Middleware subscription check error:', subErr);
+      }
+    }
+  }
 
+  const response = await next();
 
-  return next();
+  // Attach standard security headers
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+  // Content Security Policy
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com https://challenges.cloudflare.com https://cdn.jsdelivr.net https://checkout.razorpay.com https://*.razorpay.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https: http: https://*.razorpay.com",
+    "connect-src 'self' https: wss: https://api.razorpay.com https://lumberjack.razorpay.com https://*.razorpay.com",
+    "frame-src 'self' https://accounts.google.com https://challenges.cloudflare.com https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com",
+    "object-src 'none'",
+    "base-uri 'self'"
+  ].join('; ');
+
+  response.headers.set('Content-Security-Policy', csp);
+
+  return response;
 });

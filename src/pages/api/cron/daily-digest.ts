@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { getDb } from '../../../lib/db';
 import { users, jobPostings, notifications } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
@@ -11,7 +12,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
   try {
     const db = getDb();
-    const env = (locals as any).runtime?.env;
+    const workerEnv = (env as any) || process.env;
 
     // 1. Fetch all employees looking for jobs
     const candidates = await db.select().from(users).where(eq(users.userType, 'employee')).all();
@@ -24,15 +25,15 @@ export const GET: APIRoute = async ({ request, locals }) => {
     let emailsSent = 0;
     for (const candidate of candidates) {
       // Mock sending an email via Resend
-      if (env?.RESEND_API_KEY && candidate.email) {
+      if (workerEnv?.RESEND_API_KEY && candidate.email) {
         await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+            'Authorization': `Bearer ${workerEnv.RESEND_API_KEY}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            from: 'RecruitNest <noreply@yourdomain.com>',
+            from: 'JobNed <noreply@yourdomain.com>',
             to: [candidate.email],
             subject: 'Your Daily Job Matches',
             html: '<p>Here are 5 new jobs perfectly matched to your profile!</p>'

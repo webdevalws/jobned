@@ -82,7 +82,7 @@ const jobCountMap = new Map(jobCounts.map(j => [j.employerId, j.jobCount]));
 
               return (
                 <tr class={`employer-row ${isBlocked ? 'blocked-row' : ''}`} data-emp-id={emp.id}>
-                  <td>
+                  <td class="col-company">
                     <div class="company-meta-cell">
                       <div class="company-logo-avatar">
                         {emp.companyName ? emp.companyName.charAt(0).toUpperCase() : emp.firstName.charAt(0).toUpperCase()}
@@ -93,28 +93,28 @@ const jobCountMap = new Map(jobCounts.map(j => [j.employerId, j.jobCount]));
                       </div>
                     </div>
                   </td>
-                  <td>
-                    <span class="email-txt">{emp.email}</span>
+                  <td class="col-email">
+                    <a href={`mailto:${emp.email}`} class="email-txt">✉️ {emp.email}</a>
                   </td>
-                  <td>
+                  <td class="col-plan">
                     <span class="plan-pill">{planName}</span>
                   </td>
-                  <td>
+                  <td class="col-jobs">
                     <span class="jobs-badge">
                       <strong>{jobsCount}</strong> Jobs
                     </span>
                   </td>
-                  <td>
+                  <td class="col-verify">
                     <span class={`status-pill status-${emp.verifiedStatus}`}>
                       {emp.verifiedStatus === 'verified' ? '✓ Verified' : emp.verifiedStatus === 'rejected' ? '✕ Rejected' : '⏳ Pending'}
                     </span>
                   </td>
-                  <td>
+                  <td class="col-status">
                     <span class={`account-pill ${isBlocked ? 'pill-blocked' : 'pill-active'}`}>
                       {isBlocked ? '🔴 Suspended' : '🟢 Active'}
                     </span>
                   </td>
-                  <td>
+                  <td class="col-actions">
                     <div class="actions-group">
                       <!-- Quick View Modal Button -->
                       <button 
@@ -759,12 +759,14 @@ const jobCountMap = new Map(jobCounts.map(j => [j.employerId, j.jobCount]));
       background: var(--color-surface) !important;
       backdrop-filter: blur(16px) !important;
       border: 1px solid var(--color-border) !important;
-      border-radius: var(--border-radius-md) !important;
+      border-radius: var(--border-radius-lg, 14px) !important;
       padding: 1.15rem 1rem !important;
       margin-bottom: 1rem !important;
       display: flex !important;
-      flex-direction: column !important;
-      gap: 0.75rem !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      align-items: center !important;
+      gap: 0.55rem !important;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
     }
 
@@ -773,13 +775,91 @@ const jobCountMap = new Map(jobCounts.map(j => [j.employerId, j.jobCount]));
       border: none !important;
     }
 
+    .col-company {
+      width: 100% !important;
+    }
+
+    .company-meta-cell {
+      width: 100% !important;
+      white-space: normal !important;
+    }
+
+    .company-name-txt {
+      white-space: normal !important;
+      word-break: break-word !important;
+      display: block !important;
+    }
+
+    .recruiter-sub {
+      white-space: normal !important;
+      word-break: break-word !important;
+    }
+
+    
+    .col-email {
+      width: 100% !important;
+      margin-top: -0.15rem !important;
+      margin-bottom: 0.25rem !important;
+    }
+
+    .email-txt {
+      white-space: normal !important;
+      word-break: break-all !important;
+      color: var(--color-text-muted) !important;
+      font-size: 0.85rem !important;
+      text-decoration: none !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.35rem !important;
+    }
+
+    .email-txt:hover {
+      color: var(--color-primary) !important;
+    }
+
+    .col-plan,
+    .col-jobs,
+    .col-verify,
+    .col-status {
+      display: inline-flex !important;
+      align-items: center !important;
+      width: auto !important;
+      flex: 0 0 auto !important;
+    }
+
+    .plan-pill,
+    .jobs-badge,
+    .status-pill,
+    .account-pill {
+      height: 28px !important;
+      box-sizing: border-box !important;
+      font-size: 0.76rem !important;
+      padding: 0.25rem 0.65rem !important;
+      line-height: 1 !important;
+    }
+
+    .col-actions {
+      width: 100% !important;
+      margin-top: 0.35rem !important;
+    }
+
     .actions-group {
       width: 100% !important;
       justify-content: flex-start !important;
-      gap: 0.5rem !important;
-      padding-top: 0.65rem !important;
+      gap: 0.6rem !important;
+      padding-top: 0.75rem !important;
       border-top: 1px solid var(--color-border) !important;
-      margin-top: 0.25rem !important;
+    }
+
+    .btn-action-icon {
+      width: 38px !important;
+      height: 38px !important;
+      border-radius: 10px !important;
+      font-size: 1rem !important;
+    }
+
+    .table-card {
+      margin-bottom: 2.5rem !important;
     }
 
     .modal-card {

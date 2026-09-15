@@ -30,8 +30,12 @@ export const GET: APIRoute = async ({ params, locals }) => {
     if (ext === 'png') headers.set('Content-Type', 'image/png');
     else if (ext === 'jpg' || ext === 'jpeg') headers.set('Content-Type', 'image/jpeg');
     else if (ext === 'gif') headers.set('Content-Type', 'image/gif');
+    else if (ext === 'webp') headers.set('Content-Type', 'image/webp');
+    else if (ext === 'svg') headers.set('Content-Type', 'image/svg+xml');
     else if (ext === 'pdf') headers.set('Content-Type', 'application/pdf');
     else headers.set('Content-Type', 'application/octet-stream');
+
+    headers.set('Content-Disposition', 'inline');
 
     return new Response(object.body, {
       headers,

@@ -4,6 +4,20 @@ import { users, jobPostings, applications, notifications } from '../../../db/sch
 import { eq } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Content-Type': 'application/json'
+};
+
+export const OPTIONS: APIRoute = async () => {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders
+  });
+};
+
 export const POST: APIRoute = async ({ request }) => {
   try {
     // 1. Verify API Key
@@ -14,18 +28,18 @@ export const POST: APIRoute = async ({ request }) => {
     if (!authHeader || authHeader !== `Bearer ${expectedKey}`) {
       return new Response(JSON.stringify({ error: 'Unauthorized: Invalid API Key' }), { 
         status: 401,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders
       });
     }
 
     // 2. Parse request data
     const data = await request.json();
-    const { jobId, applicantEmail, applicantName, applicantPhone, resumeUrl, coverLetter } = data;
+    const { jobId, applicantEmail, applicantName, applicantPhone, resumeUrl, coverLetter, source } = data;
 
     if (!jobId || !applicantEmail || !applicantName) {
       return new Response(JSON.stringify({ error: 'Missing required fields: jobId, applicantEmail, applicantName' }), { 
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders
       });
     }
 
@@ -47,7 +61,7 @@ export const POST: APIRoute = async ({ request }) => {
         if (superAdmins.length === 0) {
           return new Response(JSON.stringify({ error: 'System configuration error: No admin found to own this external job.' }), { 
             status: 500,
-            headers: { 'Content-Type': 'application/json' }
+            headers: corsHeaders
           });
         }
         ownerId = superAdmins[0].id;
@@ -102,7 +116,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (existingApps.length > 0) {
       return new Response(JSON.stringify({ error: 'Applicant has already applied to this job' }), { 
         status: 409,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders
       });
     }
 
@@ -115,7 +129,7 @@ export const POST: APIRoute = async ({ request }) => {
       employerId: job.employerId,
       resumeUrl: resumeUrl || '',
       coverLetter: coverLetter || null,
-      notes: 'Submitted via Alightway Live Website',
+      notes: source ? (source.startsWith('Submitted via') ? source : `Submitted via ${source}`) : 'Submitted via Alightway Live Website',
       status: 'received',
       statusHistory: [{ status: 'received', updated_at: new Date().toISOString() }]
     });
@@ -171,7 +185,7 @@ export const POST: APIRoute = async ({ request }) => {
     // Success response
     return new Response(JSON.stringify({ 
       success: true, 
-      message: 'Application successfully synced to RecruitNest',
+      message: 'Application successfully synced to JobNed',
       applicationId: applicationId
     }), { 
       status: 201,

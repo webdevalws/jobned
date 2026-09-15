@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">RecruitNest</string>
-    <string name="title_activity_main">RecruitNest</string>
-    <string name="package_name">com.recruitnest.app</string>
-    <string name="custom_url_scheme">com.recruitnest.app</string>
+    <string name="app_name">JobNed</string>
+    <string name="title_activity_main">JobNed</string>
+    <string name="package_name">com.jobned.app</string>
+    <string name="custom_url_scheme">com.jobned.app</string>
 </resources>

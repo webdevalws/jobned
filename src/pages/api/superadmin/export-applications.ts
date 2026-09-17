@@ -14,6 +14,7 @@ export const GET: APIRoute = async (context) => {
   const url = new URL(context.request.url);
   const jobTitle = url.searchParams.get("jobTitle");
   const positionParam = url.searchParams.get("position");
+  const searchParam = (url.searchParams.get("search") || url.searchParams.get("q") || "").trim();
   const fromDate = url.searchParams.get("fromDate");
   const toDate = url.searchParams.get("toDate");
   
@@ -39,6 +40,18 @@ export const GET: APIRoute = async (context) => {
 
   if (jobTitle) {
     conditions.push(like(jobPostings.jobTitle, `%${jobTitle}%`));
+  }
+
+  if (searchParam) {
+    conditions.push(
+      or(
+        like(users.firstName, `%${searchParam}%`),
+        like(users.lastName, `%${searchParam}%`),
+        like(users.email, `%${searchParam}%`),
+        like(users.phone, `%${searchParam}%`),
+        like(applications.notes, `%${searchParam}%`)
+      )
+    );
   }
   
   if (fromDate) {

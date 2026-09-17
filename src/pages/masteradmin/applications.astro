@@ -20,6 +20,7 @@ const db = getDb();
 const sourceParam = Astro.url.searchParams.get("source") || "alightway";
 const sortParam = Astro.url.searchParams.get("sort") || "date_desc";
 const positionParam = Astro.url.searchParams.get("position") || "all";
+const searchParam = (Astro.url.searchParams.get("search") || Astro.url.searchParams.get("q") || "").trim();
 
 let orderByClause = desc(applications.appliedAt);
 if (sortParam === "date_asc") {
@@ -91,10 +92,25 @@ const availablePositions = await db
   .groupBy(sql`COALESCE(${jobPostings.jobTitle}, ${applications.jobPostingId})`)
   .orderBy(desc(count(applications.id)));
 
-// Apply Position Filter condition if a specific position is selected
+// Apply Position and Candidate Search Filter conditions
 const finalConditions = [...sourceConditions];
 if (positionParam && positionParam !== "all") {
   finalConditions.push(sql`COALESCE(${jobPostings.jobTitle}, ${applications.jobPostingId}) = ${positionParam}`);
+}
+
+if (searchParam) {
+  finalConditions.push(
+    or(
+      like(users.firstName, `%${searchParam}%`),
+      like(users.lastName, `%${searchParam}%`),
+      sql`(${users.firstName} || ' ' || ${users.lastName}) LIKE ${`%${searchParam}%`}`,
+      like(users.email, `%${searchParam}%`),
+      like(users.phone, `%${searchParam}%`),
+      like(applications.notes, `%${searchParam}%`),
+      like(applications.coverLetter, `%${searchParam}%`),
+      sql`COALESCE(${jobPostings.jobTitle}, ${applications.jobPostingId}) LIKE ${`%${searchParam}%`}`
+    )
+  );
 }
 
 const whereClause = finalConditions.length > 0 ? and(...finalConditions) : undefined;
@@ -208,7 +224,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
         </div>
         
         <div class="header-actions">
-          <a href={`/api/superadmin/export-applications?source=${sourceParam}&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class="btn btn-outline export-btn">
+          <a href={`/api/superadmin/export-applications?source=${sourceParam}&position=${encodeURIComponent(positionParam)}&sort=${sortParam}${searchParam ? `&search=${encodeURIComponent(searchParam)}` : ''}`} class="btn btn-outline export-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.4rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
             Export CSV ({allApplications.length})
           </a>
@@ -231,25 +247,25 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
 
     <!-- Source Tabs Row (Segmented Navigation) -->
     <div class="source-tabs-row mb-3">
-      <a href={`/masteradmin/applications?source=alightway&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class={`tab-pill ${sourceParam === 'alightway' ? 'active-tab' : ''}`}>
+      <a href={`/masteradmin/applications?source=alightway&position=${encodeURIComponent(positionParam)}&sort=${sortParam}${searchParam ? `&search=${encodeURIComponent(searchParam)}` : ''}`} class={`tab-pill ${sourceParam === 'alightway' ? 'active-tab' : ''}`}>
         <span class="tab-icon">🌐</span>
         <span>Alightway Website</span>
         <span class="tab-count-badge">{totalAlightwayApps}</span>
       </a>
 
-      <a href={`/masteradmin/applications?source=sanskar&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class={`tab-pill ${sourceParam === 'sanskar' ? 'active-tab' : ''}`}>
+      <a href={`/masteradmin/applications?source=sanskar&position=${encodeURIComponent(positionParam)}&sort=${sortParam}${searchParam ? `&search=${encodeURIComponent(searchParam)}` : ''}`} class={`tab-pill ${sourceParam === 'sanskar' ? 'active-tab' : ''}`}>
         <span class="tab-icon">🏗️</span>
         <span>Sanskar Construction</span>
         <span class="tab-count-badge">{totalSanskarApps}</span>
       </a>
 
-      <a href={`/masteradmin/applications?source=platform&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class={`tab-pill ${sourceParam === 'platform' ? 'active-tab' : ''}`}>
+      <a href={`/masteradmin/applications?source=platform&position=${encodeURIComponent(positionParam)}&sort=${sortParam}${searchParam ? `&search=${encodeURIComponent(searchParam)}` : ''}`} class={`tab-pill ${sourceParam === 'platform' ? 'active-tab' : ''}`}>
         <span class="tab-icon">🏢</span>
         <span>JobNed Platform</span>
         <span class="tab-count-badge">{totalPlatformApps}</span>
       </a>
 
-      <a href={`/masteradmin/applications?source=all&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class={`tab-pill ${sourceParam === 'all' ? 'active-tab' : ''}`}>
+      <a href={`/masteradmin/applications?source=all&position=${encodeURIComponent(positionParam)}&sort=${sortParam}${searchParam ? `&search=${encodeURIComponent(searchParam)}` : ''}`} class={`tab-pill ${sourceParam === 'all' ? 'active-tab' : ''}`}>
         <span class="tab-icon">📊</span>
         <span>All Applications</span>
         <span class="tab-count-badge">{totalAppsAll}</span>
@@ -258,10 +274,31 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
 
     <!-- Dedicated Filter & Controls Toolbar Card -->
     <div class="filter-controls-card mb-4">
-      <form action="/masteradmin/applications" method="GET" class="filter-controls-form">
+      <form action="/masteradmin/applications" method="GET" class="filter-controls-form" id="filterControlsForm">
         <input type="hidden" name="source" value={sourceParam} />
 
         <div class="form-inputs-left">
+          <!-- Candidate Search Input with Live Realtime Filter -->
+          <div class="search-input-group">
+            <span class="search-icon">🔍</span>
+            <input 
+              type="text" 
+              name="search" 
+              id="candidateSearchInput" 
+              class="candidate-search-input" 
+              placeholder="Search candidate by name, email, phone..." 
+              value={searchParam}
+              autocomplete="off"
+            />
+            {searchParam && (
+              <a 
+                href={`/masteradmin/applications?source=${sourceParam}&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} 
+                class="btn-clear-search" 
+                title="Clear Search"
+              >✕</a>
+            )}
+          </div>
+
           <!-- Position Filter Dropdown -->
           <div class="select-group">
             <label for="position-select" class="select-label">💼 Filter Position:</label>
@@ -292,16 +329,25 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
         </div>
 
         <div class="form-actions-right">
-          {positionParam !== "all" ? (
-            <div class="active-filter-badge">
-              <span>Position: <strong>{positionParam}</strong></span>
-              <a href={`/masteradmin/applications?source=${sourceParam}&position=all&sort=${sortParam}`} class="btn-clear-filter" title="Clear Position Filter">
+          {searchParam && (
+            <div class="active-filter-badge me-2">
+              <span>Candidate: <strong>"{searchParam}"</strong></span>
+              <a href={`/masteradmin/applications?source=${sourceParam}&position=${encodeURIComponent(positionParam)}&sort=${sortParam}`} class="btn-clear-filter" title="Clear Candidate Search">
                 ✕ Reset
               </a>
             </div>
-          ) : (
-            <span class="results-count-lbl">Showing {allApplications.length} applications</span>
           )}
+          {positionParam !== "all" && (
+            <div class="active-filter-badge">
+              <span>Position: <strong>{positionParam}</strong></span>
+              <a href={`/masteradmin/applications?source=${sourceParam}&position=all&sort=${sortParam}${searchParam ? `&search=${encodeURIComponent(searchParam)}` : ''}`} class="btn-clear-filter" title="Clear Position Filter">
+                ✕ Reset
+              </a>
+            </div>
+          )}
+          <span class="results-count-lbl" id="resultsCountDisplay">
+            {searchParam ? `Found ${allApplications.length} matching candidate${allApplications.length === 1 ? '' : 's'}` : `Showing ${allApplications.length} applications`}
+          </span>
         </div>
       </form>
     </div>
@@ -322,16 +368,32 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
             </tr>
           </thead>
           <tbody>
+            <!-- Live filter 0 matches row -->
+            <tr id="noLiveMatchRow" style="display: none;">
+              <td colspan="7" class="empty-cell">
+                <div class="empty-state">
+                  <div class="empty-icon">🔍</div>
+                  <h3>No Matching Candidates Found</h3>
+                  <p>
+                    No candidate found matching "<span id="liveSearchQueryDisplay" style="font-weight: 700; color: var(--color-primary);"></span>".
+                    Try searching by name, email address, or phone number.
+                  </p>
+                </div>
+              </td>
+            </tr>
+
             {allApplications.length === 0 ? (
               <tr>
                 <td colspan="7" class="empty-cell">
                   <div class="empty-state">
-                    <div class="empty-icon">{sourceParam === 'alightway' ? '🌐' : '📁'}</div>
-                    <h3>No Applications Found</h3>
+                    <div class="empty-icon">{searchParam ? '🔍' : sourceParam === 'alightway' ? '🌐' : '📁'}</div>
+                    <h3>{searchParam ? 'No Candidates Found' : 'No Applications Found'}</h3>
                     <p>
-                      {positionParam !== "all" 
-                        ? `No applications found for position "${positionParam}".` 
-                        : 'No applications found matching the selected filters.'}
+                      {searchParam 
+                        ? `No candidates found matching "${searchParam}". Try clearing your search query.`
+                        : positionParam !== "all" 
+                          ? `No applications found for position "${positionParam}".` 
+                          : 'No applications found matching the selected filters.'}
                     </p>
                   </div>
                 </td>
@@ -341,9 +403,10 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                 const notesStr = (app.notes || "").toLowerCase();
                 const isSanskar = notesStr.includes("sanskar");
                 const isAlightway = !isSanskar && (app.userType === "external_applicant" || (app.jobId && app.jobId.startsWith("external_")) || notesStr.includes("alightway") || notesStr.includes("external"));
+                const rowSearchText = `${app.applicantFirstName || ''} ${app.applicantLastName || ''} ${app.applicantEmail || ''} ${app.applicantPhone || ''} ${app.jobTitle || ''} ${app.notes || ''}`.toLowerCase();
 
                 return (
-                  <tr class="app-row">
+                  <tr class="app-row" data-search-text={rowSearchText}>
                     <td>
                       <span class={`source-tag ${isSanskar ? 'tag-sanskar' : isAlightway ? 'tag-alightway' : 'tag-platform'}`}>
                         {isSanskar ? '🏗️ Sanskar Website' : isAlightway ? '🌐 Alightway Website' : '🏢 JobNed Platform'}
@@ -524,6 +587,57 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
   }
   // @ts-ignore
   window.deleteApplication = deleteApplication;
+
+  // Live Instant Search Filter for Candidates
+  const searchInput = document.getElementById("candidateSearchInput") as HTMLInputElement | null;
+  const countDisplay = document.getElementById("resultsCountDisplay");
+  const noMatchRow = document.getElementById("noLiveMatchRow");
+  const liveQuerySpan = document.getElementById("liveSearchQueryDisplay");
+
+  if (searchInput) {
+    const applyLiveSearch = () => {
+      const q = searchInput.value.toLowerCase().trim();
+      const rows = document.querySelectorAll(".app-row");
+      let visibleCount = 0;
+
+      rows.forEach((row) => {
+        const text = (row.getAttribute("data-search-text") || "").toLowerCase();
+        if (!q || text.includes(q)) {
+          (row as HTMLElement).style.display = "";
+          visibleCount++;
+        } else {
+          (row as HTMLElement).style.display = "none";
+        }
+      });
+
+      if (noMatchRow) {
+        if (visibleCount === 0 && rows.length > 0 && q) {
+          noMatchRow.style.display = "";
+          if (liveQuerySpan) liveQuerySpan.textContent = searchInput.value.trim();
+        } else {
+          noMatchRow.style.display = "none";
+        }
+      }
+
+      if (countDisplay) {
+        if (q) {
+          countDisplay.textContent = `Found ${visibleCount} matching candidate${visibleCount === 1 ? '' : 's'}`;
+        } else {
+          countDisplay.textContent = `Showing ${rows.length} applications`;
+        }
+      }
+    };
+
+    searchInput.addEventListener("input", applyLiveSearch);
+
+    // Pressing Enter submits form so URL & export CSV reflect candidate search
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const form = document.getElementById("filterControlsForm") as HTMLFormElement | null;
+        if (form) form.submit();
+      }
+    });
+  }
 </script>
 
 <style>
@@ -674,6 +788,60 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
     align-items: center;
     gap: 1rem;
     flex-wrap: wrap;
+  }
+
+  /* Candidate Search Bar */
+  .search-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.45rem 0.85rem;
+    min-width: 280px;
+    max-width: 380px;
+    flex: 1 1 auto;
+    transition: all 0.2s ease;
+  }
+  .search-input-group:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  }
+  .search-icon {
+    font-size: 0.95rem;
+    opacity: 0.65;
+    user-select: none;
+    line-height: 1;
+  }
+  .candidate-search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--color-text-main);
+    font-size: 0.85rem;
+    font-weight: 500;
+    outline: none;
+    font-family: inherit;
+    min-width: 180px;
+  }
+  .candidate-search-input::placeholder {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+  }
+  .btn-clear-search {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0 0.25rem;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.15s ease;
+  }
+  .btn-clear-search:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
   }
 
   .select-group {

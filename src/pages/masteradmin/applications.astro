@@ -278,7 +278,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
         <input type="hidden" name="source" value={sourceParam} />
 
         <div class="form-inputs-left">
-          <!-- Candidate Search Input with Live Realtime Filter -->
+          <!-- Candidate Search Input with Live Realtime Filter & Submit Button -->
           <div class="search-input-group">
             <span class="search-icon">🔍</span>
             <input 
@@ -297,6 +297,9 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                 title="Clear Search"
               >✕</a>
             )}
+            <button type="submit" class="btn-search-submit" title="Search Candidate">
+              Search
+            </button>
           </div>
 
           <!-- Position Filter Dropdown -->
@@ -798,9 +801,9 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    padding: 0.45rem 0.85rem;
-    min-width: 280px;
-    max-width: 380px;
+    padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+    min-width: 320px;
+    max-width: 440px;
     flex: 1 1 auto;
     transition: all 0.2s ease;
   }
@@ -823,7 +826,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
     font-weight: 500;
     outline: none;
     font-family: inherit;
-    min-width: 180px;
+    min-width: 160px;
   }
   .candidate-search-input::placeholder {
     color: var(--color-text-muted);
@@ -834,7 +837,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
     text-decoration: none;
     font-size: 0.85rem;
     font-weight: 700;
-    padding: 0 0.25rem;
+    padding: 0 0.35rem;
     cursor: pointer;
     border-radius: 50%;
     transition: all 0.15s ease;
@@ -842,6 +845,22 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
   .btn-clear-search:hover {
     color: #ef4444;
     background: rgba(239, 68, 68, 0.1);
+  }
+  .btn-search-submit {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn-search-submit:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
   }
 
   .select-group {

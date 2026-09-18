@@ -928,8 +928,12 @@ try {
     right: 0 !important;
     bottom: 0 !important;
     z-index: 100000 !important;
-    display: flex !important;
+    display: none !important;
     justify-content: flex-end !important;
+  }
+
+  #transcriptModal.transcript-modal.active {
+    display: flex !important;
   }
 
   #transcriptModal .modal-backdrop {
@@ -1396,6 +1400,7 @@ try {
 
     function openModal(convId, convName) {
       if (!modal) return;
+      modal.classList.add('active');
       modal.style.display = 'flex';
       document.body.style.overflow = 'hidden';
 
@@ -1463,6 +1468,7 @@ try {
 
     function closeModal() {
       if (!modal) return;
+      modal.classList.remove('active');
       modal.style.display = 'none';
       document.body.style.overflow = '';
     }
@@ -1473,7 +1479,7 @@ try {
 
     // Escape key closes modal
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && modal && modal.style.display !== 'none') {
+      if (e.key === 'Escape' && modal && modal.classList.contains('active')) {
         closeModal();
       }
     });

@@ -1,0 +1,238 @@
+================================================================================
+RECRUITNEST / JOBNED - MASTER ARCHITECTURE & PROJECT BLUEPRINT (what.txt)
+================================================================================
+Last Updated: 2026-09-18
+Production Domain: https://jobned.com | https://www.jobned.com
+Cloudflare Worker: https://recruitnest.junior-webdev-alws.workers.dev
+Repo Root: D:\RecruitNest
+
+Use this file as the primary index when starting or modifying any feature.
+You do not need to search the entire project—find the relevant section,
+jump to the specified file path, and start work immediately.
+
+================================================================================
+1. PROJECT OVERVIEW & CORE TECH STACK
+================================================================================
+- Application Name: RecruitNest (Branded in UI & SEO as "JobNed")
+- Core Purpose: Next-generation AI-powered job and talent acquisition platform.
+  Connects job seekers (candidates/employees) with employers and recruiters.
+  Features automated resume parsing, AI candidate screening and match scores (0-100),
+  vector semantic search, employer subscription plans, and an interactive AI Assistant.
+
+- Framework & Server:
+  • Astro 5.x with Server-Side Rendering (output: "server")
+  • Cloudflare Workers Adapter (@astrojs/cloudflare)
+  • Node.js compatibility enabled (nodejs_compat)
+
+- Data & Cloud Infrastructure:
+  • Relational DB: Cloudflare D1 (SQLite) managed via Drizzle ORM (`drizzle-orm`)
+  • File & Media Storage: Cloudflare R2 bucket (`recruitnest-storage`) for resumes/avatars
+  • Caching & Sessions: Cloudflare KV namespace (`b238e5692b334ffda8615424b2ac3875`)
+  • Vector Search: Cloudflare Vectorize index (`job-embeddings`)
+  • Large Language Models: Cloudflare Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`)
+    and Google Gemini API for resume scoring and candidate match summaries.
+  • Payment Gateway: Razorpay (Live key: `rzp_live_TbnQ3kUA2u3BbQ`)
+
+================================================================================
+2. DIRECTORY MAP & KEY LOCATIONS
+================================================================================
+d:\RecruitNest\
+├── astro.config.mjs          # Astro server configuration & Cloudflare adapter setup
+├── wrangler.jsonc            # Cloudflare Worker config, D1/R2/KV/Vectorize bindings, vars
+├── drizzle.config.ts         # Drizzle ORM database schema & migration config
+├── package.json              # Dependencies and scripts (astro build, dev, etc.)
+├── AGENTS.md / CLAUDE.md     # Agent instructions & server management rules
+├── public/                   # Static assets (favicons, site.webmanifest, logos, uploads)
+│
+├── src/
+│   ├── layouts/
+│   │   └── Layout.astro      # Master HTML layout, global SEO, Theme toggler, JobNedAssistant root
+│   │
+│   ├── components/
+│   │   ├── JobNedAssistant.astro # Global interactive AI Chatbot drawer & client widget
+│   │   ├── Header.astro      # Global navigation header
+│   │   ├── Footer.astro      # Global site footer
+│   │   ├── Sidebar.astro     # Dashboard sidebar (Employer, Employee, Admin)
+│   │   ├── SEO.astro         # Dynamic OpenGraph, Twitter cards & Schema.org JSON-LD
+│   │   ├── CookieBanner.astro# Privacy / Cookie consent banner
+│   │   └── MobileBottomNav.astro # Mobile navigation bar
+│   │
+│   ├── db/
+│   │   └── schema.ts         # All D1 SQLite database tables & relation definitions
+│   │
+│   ├── lib/
+│   │   ├── auth.ts           # JWT token generation, verification & password hashing
+│   │   ├── db.ts             # Drizzle D1 database client factory (`getDb()`)
+│   │   ├── config.ts         # Runtime configuration & environment variables
+│   │   ├── razorpay.ts       # Razorpay order creation, signature verification, webhooks
+│   │   ├── candidate-ranker.ts # AI scoring engine for candidate-job matching
+│   │   ├── vectorize-matcher.ts # Cloudflare Vectorize embeddings generator & search
+│   │   ├── fraud-detector.ts # Job posting & candidate anti-spam / fraud detection
+│   │   ├── recommendations.ts# Recommendation algorithms for employee job suggestions
+│   │   ├── resume-helper.ts  # R2 resume upload helper & link generator
+│   │   └── sanitize.ts       # Input sanitizer & XSS preventer
+│   │
+│   ├── middleware.ts         # Global auth verification, RBAC guards, employer sub checks
+│   │
+│   └── pages/                # File-system router (Pages and API routes)
+│       ├── index.astro       # Landing / Homepage (Job search hero, featured roles, CTA)
+│       ├── jobs.astro        # Browse jobs page with role, location, salary & remote filters
+│       ├── pricing.astro     # Employer recruitment pricing tiers & feature comparison
+│       ├── checkout.astro    # Razorpay payment & plan upgrade checkout
+│       ├── login.astro       # Universal sign-in page
+│       ├── register.astro    # User registration (?role=employee or ?role=employer)
+│       ├── forgot-password.astro # Password recovery request
+│       ├── reset-password.astro  # Password reset confirmation
+│       ├── dashboard.astro   # Main role-aware dashboard entry redirector
+│       ├── settings.astro    # User account settings & profile management
+│       ├── notifications.astro # Notification inbox
+│       ├── sitemap.xml.ts    # Dynamic XML sitemap generator
+│       │
+│       ├── jobs/             # Job detail pages
+│       │   └── [id].astro    # Individual job posting page with Apply modal
+│       │
+│       ├── employee/         # Candidate portal
+│       │   └── profile.astro # Candidate profile builder (skills, resume, work history)
+│       │
+│       ├── employer/         # Employer portal
+│       │   ├── index.astro   # Employer analytics dashboard
+│       │   ├── jobs.astro    # Manage employer job postings
+│       │   ├── screening.astro # AI Candidate Screening & match verdicts
+│       │   ├── candidates.astro# Candidate pool & applicant review
+│       │   ├── interviews.astro# Scheduled candidate interviews
+│       │   └── jobs/
+│       │       └── new.astro # Job creator & publisher
+│       │
+│       ├── masteradmin/      # Platform MasterAdmin portal
+│       │   ├── index.astro   # Master platform overview & KPI counters
+│       │   ├── users.astro   # User management (verify, suspend, role changes)
+│       │   ├── jobs.astro    # Global job moderation & approval
+│       │   ├── applications.astro # All candidate applications across platform
+│       │   ├── screening.astro # AI screening logs & audit trails
+│       │   ├── revenue.astro # Subscription plans & Razorpay payment logs
+│       │   └── bot.astro     # Live AI Chatbot transcripts, visitor names & stats
+│       │
+│       └── api/              # Backend API routes
+│           ├── auth/         # Auth APIs (login.ts, register.ts, logout.ts, google.ts)
+│           ├── ai/           # AI APIs (chat.ts, screen.ts, embed.ts, parse-resume.ts)
+│           ├── jobs/         # Job APIs (create.ts, list.ts, apply.ts, [id].ts)
+│           ├── employer/     # Employer management APIs (jobs, screening, applicants)
+│           ├── employee/     # Candidate APIs (profile, resume, apply)
+│           ├── masteradmin/  # MasterAdmin control endpoints (users, bot, jobs)
+│           ├── payments/     # Razorpay order & webhook handlers
+│           └── cron/         # Scheduled automation tasks (crawler, reminders)
+
+================================================================================
+3. DATABASE SCHEMA & D1 TABLES (`src/db/schema.ts`)
+================================================================================
+1. `users`
+   - Columns: id (UUID), user_type ('employee'|'employer'|'admin'|'superadmin'|'masteradmin'),
+     email, phone, password_hash, first_name, last_name, verified_status ('pending'|'verified'|'rejected'),
+     verified_at, verified_by, plan_id (P001, P002, P003), plan_expires_at, subscription_status ('active'|'inactive'),
+     company_name, company_website, company_industry, company_size, company_bio, avatar_url,
+     headline, bio, skills (JSON array), location, linkedin_url, portfolio_url, experience_years,
+     work_experience (JSON array), education (JSON array), default_resume_url, is_active, is_deleted.
+
+2. `plans`
+   - Columns: plan_id (P001, P002, P003), plan_name, description, job_posting_limit,
+     resume_limit, candidate_apply_limit, price, annual_price, currency, billing_cycle,
+     features (JSON array), is_active.
+
+3. `job_postings`
+   - Columns: id (UUID), employer_id, job_title, description (max 5000 chars), requirements (JSON array),
+     salary_min, salary_max, salary_currency, location_city, location_remote (boolean),
+     employment_type ('Full-time'|'Part-time'|'Contract'|'Internship'), experience_level ('Entry'|'Mid'|'Senior'|'Lead'),
+     status ('draft'|'published'|'closed'), applications_count, max_resumes_allowed, view_count,
+     application_form_config (JSON), external_apply_url, apply_mode ('internal'|'redirect'|'native_forward'),
+     source_type ('internal'|'crawled'), published_at, closed_at, is_deleted.
+
+4. `applications`
+   - Columns: id (UUID), job_posting_id, applicant_id, employer_id, resume_url, cover_letter,
+     custom_answers (JSON), status ('received'|'under_review'|'shortlisted'|'rejected'|'accepted'),
+     status_history (JSON), rating (1-5), ai_score (0-100), ai_summary, notes, applied_at, is_deleted.
+
+5. `interviews`
+   - Columns: id, application_id, job_posting_id, employer_id, candidate_id, title,
+     interview_type ('video'|'in_person'|'phone'), meeting_link, scheduled_at, duration_minutes,
+     status ('scheduled'|'rescheduled'|'completed'|'cancelled'), notes, interviewer_names, timezone.
+
+6. `saved_jobs`
+   - Columns: id, user_id, job_posting_id, job_data (JSON snapshot), created_at.
+
+7. `recommendations`
+   - Columns: id, employee_id, job_posting_id, match_score, skill_match, experience_match, preference_match.
+
+8. `bot_conversations` (Live AI Chatbot sessions)
+   - Columns: id (UUID session), visitor_name (default 'Anonymous'), visitor_email, user_id,
+     status ('active'|'closed'), message_count, last_message, current_path, created_at, updated_at.
+
+9. `bot_messages` (Live AI Chatbot history)
+   - Columns: id (UUID), conversation_id, sender ('user'|'assistant'), content, created_at.
+
+10. `crawled_jobs_queue` & `crawler_settings`
+    - Used by automated job scrapers and feeds to ingest and stage external listings.
+
+================================================================================
+4. USER ROLES & ACCESS CONTROL (RBAC)
+================================================================================
+Managed in `src/middleware.ts`:
+- Candidate / Employee (`employee`):
+  • Access to `/applications`, `/saved`, `/recommended`, `/employee/profile`, `/settings`.
+- Employer (`employer`):
+  • Access to `/employer/*` (Dashboard, Job creation, Candidate screening, Interviews).
+  • Guard: Must have `subscription_status === 'active'` (or on free trial). If expired/unpaid,
+    middleware redirects to `/checkout?plan=...` with HTTP 402 for APIs.
+- Admin (`admin`): Access to `/admin/*`.
+- SuperAdmin (`superadmin`): Access to `/superadmin/*` and global settings.
+- MasterAdmin (`masteradmin`):
+  • Full supervisory access to `/masteradmin/*` (Users, Jobs, Applications, AI bot logs, Revenue).
+  • Whitelisted across all administrative gates.
+
+================================================================================
+5. AI CHATBOT SYSTEM ("JobNed AI Guide")
+================================================================================
+- Frontend Component: `src/components/JobNedAssistant.astro`
+- Backend API: `src/pages/api/ai/chat.ts`
+- Admin Viewer: `src/pages/masteradmin/bot.astro`
+
+Key Logic & Rules:
+1. Greetings are NEVER treated as names:
+   • Standalone inputs like "hi", "hii", "hello", "hey", "hlo", "hlw" trigger friendly greetings,
+     NOT name capture.
+2. Asking for name:
+   • After 1 or 2 user questions (`questionCount >= 1 && questionCount <= 2`), the bot appends:
+     "💬 By the way, may I know your name so I can assist you better and address you personally?"
+3. Handling name responses:
+   • If user gives name (e.g. "Prashant" or "My name is Prashant"): saves to `bot_conversations.visitor_name`,
+     and personalizes all future responses.
+   • If user refuses ("no", "skip") or asks another question: remains 'Anonymous' without nagging.
+4. Database Persistence:
+   • All turns logged into `bot_conversations` and `bot_messages` in Cloudflare D1.
+
+================================================================================
+6. RECURRING COMMANDS & WORKFLOW CHEATSHEET
+================================================================================
+- Start Development Server (background mode):
+    astro dev --background
+  Check dev server status:
+    astro dev status
+  Check dev server logs:
+    astro dev logs
+  Stop dev server:
+    astro dev stop
+
+- Build Project:
+    npm run build
+
+- Deploy to Cloudflare Production:
+    npx wrangler deploy
+
+- Run D1 SQL Query on Production:
+    npx wrangler d1 execute recruitnest --remote --command="SELECT count(*) FROM users;"
+
+- Git Operations (PowerShell syntax - use ';' instead of '&&'):
+    git add <files>; git commit -m "<message>"; git push origin main
+
+================================================================================
+END OF what.txt
+================================================================================

@@ -30,30 +30,50 @@ function formatCapitalizedName(str: string): string {
     .join(' ');
 }
 
+function isGreeting(str: string): boolean {
+  if (!str) return false;
+  const s = str.trim().toLowerCase().replace(/[.!?]+$/, '');
+  return /^(?:h+i+|h+e+l+l+o+|h+e+y+|h+e+y+a+|h+l+o+|h+l+w+|h+o+l+a+|namaste|howdy|yo|sup|greetings?|good\s+(?:morning|afternoon|evening|day))(?:\s+(?:there|jobned|bot|ai|assistant|team|everyone|all))?$/i.test(s);
+}
+
+function isRefusal(str: string): boolean {
+  if (!str) return false;
+  const s = str.trim().toLowerCase().replace(/[.!?]+$/, '');
+  return /^(?:no+|nope|nah|skip|anonymous|anon|none|nothing|later|never|not\s+now|dont\s+want|don't\s+want|prefer\s+not(?:\s+to\s+say)?|secret|private|n\/a|pass)$/i.test(s);
+}
+
 function isGenericRefusalOrQuestion(str: string): boolean {
+  if (!str) return true;
   const s = str.toLowerCase().trim().replace(/[.!?]+$/, '');
   const blocked = new Set([
     'no', 'nope', 'nah', 'not now', 'skip', 'anonymous', 'none', 'nothing', 'why', 'who', 'what', 'later',
-    'dont want', "don't want", 'prefer not', 'secret', 'test', 'hi', 'hello', 'hey', 'help', 'jobs', 'job',
+    'dont want', "don't want", 'prefer not', 'secret', 'test', 'help', 'jobs', 'job',
     'python', 'react', 'developer', 'pricing', 'apply', 'employer', 'candidate', 'screening', 'remote',
     'salary', 'salaries', 'login', 'register', 'how', 'can you', 'show me', 'about', 'services', 'find',
-    'good morning', 'good evening', 'good afternoon', 'thanks', 'thank you', 'ok', 'okay', 'sure', 'yes',
-    'yeah', 'yep', 'fine', 'great', 'awesome', 'cool', 'hiring', 'vacancy', 'openings', 'work', 'internship',
-    'fulltime', 'parttime', 'contract', 'freelance', 'engineer', 'frontend', 'backend', 'fullstack', 'designer',
-    'sales', 'marketing', 'manager', 'lead', 'senior', 'junior', 'fresher', 'intern', 'resume', 'cv', 'profile'
+    'thanks', 'thank you', 'ok', 'okay', 'sure', 'yes', 'yeah', 'yep', 'fine', 'great', 'awesome', 'cool',
+    'hiring', 'vacancy', 'openings', 'work', 'internship', 'fulltime', 'parttime', 'contract', 'freelance',
+    'engineer', 'frontend', 'backend', 'fullstack', 'designer', 'sales', 'marketing', 'manager', 'lead',
+    'senior', 'junior', 'fresher', 'intern', 'resume', 'cv', 'profile', 'null', 'undefined'
   ]);
   if (blocked.has(s)) return true;
-  if (/(job|role|remote|hiring|price|salary|salaries|apply|application|how|what|why|who|where|when|can|could|would|show|find|opening|vacancy|vacancies|search|hire|recruitment|employer|candidate|interview|resume|profile|account|register|login|signup)/i.test(s)) return true;
+  if (isGreeting(s) || isRefusal(s)) return true;
+  if (/(job|role|remote|hiring|price|salary|salaries|apply|application|how|what|why|who|where|when|which|can|could|would|show|find|opening|vacancy|vacancies|search|hire|recruitment|employer|candidate|interview|resume|profile|account|register|login|signup)\b/i.test(s)) return true;
+  if (/[?]/i.test(s)) return true;
   return false;
 }
 
-function extractNameFromQuery(text: string): string | null {
+function extractNameFromQuery(text: string, wasAskingForName: boolean = false): string | null {
   const clean = text.trim();
   if (!clean) return null;
 
-  // Patterns like "My name is John Doe", "I am Alice", "I'm Rahul", "Call me Bob", "Myself Prashant"
+  // Never treat greetings, refusals, or general questions as names
+  if (isGreeting(clean) || isRefusal(clean) || isGenericRefusalOrQuestion(clean)) {
+    return null;
+  }
+
+  // 1. Explicit introduction prefixes (works anytime): "My name is John", "I am Alice", "I'm Rahul", "Call me Bob", "Myself Prashant"
   const prefixPatterns = [
-    /(?:my\s+name\s+is|i\s+am|i'm|it's|this\s+is|call\s+me|you\s+can\s+call\s+me|myself)\s+([A-Za-z][A-Za-z'.\s]{1,35})/i,
+    /^(?:my\s+name\s+is|i\s+am|i'm|it's|this\s+is|call\s+me|you\s+can\s+call\s+me|myself)\s+([A-Za-z][A-Za-z'.\s]{1,35})/i,
     /^(?:name\s*(?::|is)\s*)([A-Za-z][A-Za-z'.\s]{1,35})/i,
   ];
 
@@ -63,19 +83,21 @@ function extractNameFromQuery(text: string): string | null {
       let candidate = match[1].trim();
       // Cut off trailing clause if user continued typing (e.g. "My name is Prashant, can you help me find jobs?")
       candidate = candidate.split(/[,.!?\n]|(?:\s+(?:and|can|i|looking|who|how|what|please|where)\b)/i)[0].trim();
-      if (candidate.length >= 2 && candidate.length <= 35 && !isGenericRefusalOrQuestion(candidate)) {
+      if (candidate.length >= 2 && candidate.length <= 35 && !isGenericRefusalOrQuestion(candidate) && !isGreeting(candidate)) {
         return formatCapitalizedName(candidate);
       }
     }
   }
 
-  // 1 to 3 alphabetic words if message is short (e.g. "Prashant", "Prashant Sharma")
-  const words = clean.split(/\s+/);
-  if (words.length >= 1 && words.length <= 3) {
+  // 2. Standalone 1-3 words: ONLY valid if the assistant explicitly asked for their name on the previous turn
+  if (wasAskingForName) {
     const stripped = clean.replace(/[.!?]+$/, '').trim();
-    if (/^[a-zA-Z]+(?:\s+[a-zA-Z]+)*$/.test(stripped) && stripped.length >= 2 && stripped.length <= 35) {
-      if (!isGenericRefusalOrQuestion(stripped)) {
-        return formatCapitalizedName(stripped);
+    const words = stripped.split(/\s+/);
+    if (words.length >= 1 && words.length <= 3) {
+      if (/^[a-zA-Z]+(?:[\s'-][a-zA-Z]+)*$/.test(stripped) && stripped.length >= 2 && stripped.length <= 35) {
+        if (!isGenericRefusalOrQuestion(stripped) && !isGreeting(stripped) && !isRefusal(stripped)) {
+          return formatCapitalizedName(stripped);
+        }
       }
     }
   }
@@ -101,10 +123,18 @@ async function persistChatToDb(
 
     const now = new Date();
 
+    // Sanitize visitor name to prevent any corrupted values like "Hii"
+    let cleanName = 'Anonymous';
+    if (visitorName && visitorName !== 'Anonymous' && !isGreeting(visitorName) && !isRefusal(visitorName) && !isGenericRefusalOrQuestion(visitorName)) {
+      cleanName = visitorName;
+    } else if (existing?.visitorName && existing.visitorName !== 'Anonymous' && !isGreeting(existing.visitorName) && !isRefusal(existing.visitorName) && !isGenericRefusalOrQuestion(existing.visitorName)) {
+      cleanName = existing.visitorName;
+    }
+
     if (!existing) {
       await db.insert(botConversations).values({
         id: conversationId,
-        visitorName: visitorName || 'Anonymous',
+        visitorName: cleanName,
         userId: userId || null,
         status: 'active',
         messageCount: 2,
@@ -115,12 +145,8 @@ async function persistChatToDb(
         isDeleted: false,
       }).run();
     } else {
-      const updatedName = (existing.visitorName && existing.visitorName !== 'Anonymous')
-        ? existing.visitorName
-        : (visitorName && visitorName !== 'Anonymous' ? visitorName : existing.visitorName);
-
       await db.update(botConversations).set({
-        visitorName: updatedName,
+        visitorName: cleanName,
         messageCount: (existing.messageCount || 0) + 2,
         lastMessage: botReply.slice(0, 200),
         currentPath: currentPath || existing.currentPath,
@@ -182,13 +208,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     let currentVisitorName = existingConv?.visitorName || body.visitorName || initialName || 'Anonymous';
+    if (isGreeting(currentVisitorName) || isRefusal(currentVisitorName) || isGenericRefusalOrQuestion(currentVisitorName)) {
+      currentVisitorName = 'Anonymous';
+    }
 
     const userMessages = messages.filter(m => m.role === 'user');
     const userMessageCount = userMessages.length;
 
     // Inspect if previous assistant message asked for the user's name
     const prevAssistantMsg = [...messages.slice(0, -1)].reverse().find(m => m.role === 'assistant');
-    const wasAskingForName = prevAssistantMsg && /(know your name|what is your name|may i know your name|tell me your name|what should i call you|may i ask your name)/i.test(prevAssistantMsg.content);
+    const wasAskingForName = Boolean(prevAssistantMsg && /(know your name|what is your name|may i know your name|tell me your name|what should i call you|may i ask your name)/i.test(prevAssistantMsg.content));
 
     const hasEverAskedForName = messages.some(m => 
       m.role === 'assistant' && /(know your name|what is your name|may i know your name|tell me your name|what should i call you|may i ask your name)/i.test(m.content)
@@ -198,9 +227,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     let structuredJobs: StructuredJob[] = [];
     let justLearnedName = false;
 
+    // Check if current user message is a greeting
+    const userIsGreeting = isGreeting(userQuery);
+
     // 1. Check if user provided their name in this message (either in response to prompt or unprompted)
-    if (currentVisitorName === 'Anonymous') {
-      const extractedName = extractNameFromQuery(userQuery);
+    if (currentVisitorName === 'Anonymous' && !userIsGreeting) {
+      const extractedName = extractNameFromQuery(userQuery, wasAskingForName);
       if (extractedName) {
         currentVisitorName = extractedName;
         justLearnedName = true;
@@ -208,19 +240,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const isJustName = words.length <= 4 || /^(?:my\s+name\s+is|i\s+am|i'm|it's|this\s+is|call\s+me|myself)\s+([A-Za-z\s'.]+)[.!?]*$/i.test(userQuery);
 
         if (isJustName) {
-          earlyReply = `Nice to meet you, **${extractedName}**! 👋\n\nHow can I help you today on JobNed?\n• **Search Jobs:** Browse active tech openings & remote positions.\n• **Job Seekers:** Guide on [creating your profile & uploading your resume](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new) & [AI candidate screening](/employer/screening).\n• **Pricing:** Compare [recruitment plans & features](/pricing).\n\nWhat would you like to explore, **${extractedName}**?`;
+          earlyReply = `Nice to meet you, **${extractedName}**! 👋\n\nHow can I help you today on JobNed?\n• **Search Jobs:** Browse active tech openings & remote positions.\n• **Job Seekers:** Guide on [creating your profile & uploading your resume](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new) & [candidate screening](/employer/screening).\n• **Pricing:** Compare [recruitment plans & features](/pricing).\n\nWhat would you like to explore, **${extractedName}**?`;
         }
-      } else if (wasAskingForName && /^(no|nope|nah|skip|anonymous|prefer not|not now)$/i.test(userQuery.trim())) {
-        earlyReply = `No problem at all! How can I assist you today on JobNed?\n\n• **Search Jobs:** Browse open tech roles & remote positions.\n• **Job Seekers:** Guide on [creating your profile](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new).\n• **Pricing:** Compare [recruitment plans](/pricing).`;
+      } else if (wasAskingForName && isRefusal(userQuery)) {
+        earlyReply = `No problem at all! We will keep things anonymous. How can I assist you today on JobNed?\n\n• **Search Jobs:** Browse open tech roles & remote positions.\n• **Job Seekers:** Guide on [creating your profile](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new).\n• **Pricing:** Compare [recruitment plans](/pricing).`;
       }
     }
 
     // 2. If user just said hello / greeting and no earlyReply yet:
-    if (!earlyReply && /^(hi|hl|hello|hey|greetings|start)$/i.test(userQuery.trim())) {
+    if (!earlyReply && userIsGreeting) {
       if (currentVisitorName === 'Anonymous') {
-        earlyReply = `👋 Hello! Welcome to **JobNed** — your AI-powered job and talent matching platform.\n\nI can help you explore active jobs, guide your resume & applications, or assist employers with hiring and pricing.\n\nWhat would you like to explore today? (And by the way, may I know your name so I can assist you better?)`;
+        earlyReply = `👋 Hello! Welcome to **JobNed** — your AI-powered job and talent matching platform.\n\nHow can I help you today?\n• **Search Jobs:** Browse active tech openings & remote positions.\n• **Job Seekers:** Guide on [creating your profile & uploading your resume](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new) & [candidate screening](/employer/screening).\n• **Pricing:** Compare [recruitment plans & features](/pricing).\n\nWhat would you like to explore?`;
       } else {
-        earlyReply = `👋 Hello again, **${currentVisitorName}**! How can I assist you today?\n\n• **Search Jobs:** Browse open tech roles & remote positions.\n• **Job Seekers:** Guide on [creating your profile](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new).\n• **Pricing:** Compare [recruitment plans](/pricing).`;
+        earlyReply = `👋 Hello again, **${currentVisitorName}**! How can I assist you today on JobNed?\n\n• **Search Jobs:** Browse open tech roles & remote positions.\n• **Job Seekers:** Guide on [creating your profile](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new).\n• **Pricing:** Compare [recruitment plans](/pricing).`;
       }
     }
 
@@ -463,14 +495,17 @@ CRITICAL RULES:
       reply = `Nice to meet you, **${currentVisitorName}**! 👋\n\n` + reply;
     }
 
-    // If user is Anonymous after 1 or 2 questions and bot hasn't asked yet, politely ask for their name
-    if (
-      currentVisitorName === 'Anonymous' &&
+    // If user is Anonymous after answering 1 or 2 questions and bot hasn't asked yet, politely ask for their name
+    const questionCount = userMessages.filter(m => !isGreeting(m.content) && !isRefusal(m.content)).length;
+    const shouldAskName = currentVisitorName === 'Anonymous' &&
       !hasEverAskedForName &&
-      userMessageCount >= 1 &&
-      userMessageCount <= 2 &&
-      !/(know your name|what is your name|what should i call you|tell me your name|may i ask your name)/i.test(reply)
-    ) {
+      !wasAskingForName &&
+      !userIsGreeting &&
+      questionCount >= 1 &&
+      questionCount <= 2 &&
+      !/(know your name|what is your name|what should i call you|tell me your name|may i ask your name)/i.test(reply);
+
+    if (shouldAskName) {
       reply += `\n\n💬 *By the way, may I know your name so I can assist you better and address you personally?*`;
     }
 

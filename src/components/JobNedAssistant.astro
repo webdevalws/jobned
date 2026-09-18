@@ -201,11 +201,16 @@
     }
 
     function getVisitorName() {
-      return sessionStorage.getItem(VISITOR_NAME_KEY) || 'Anonymous';
+      const stored = sessionStorage.getItem(VISITOR_NAME_KEY);
+      if (stored && /^(?:h+i+|h+e+l+l+o+|h+e+y+|h+l+o+|h+l+w+|anonymous)$/i.test(stored.trim())) {
+        sessionStorage.removeItem(VISITOR_NAME_KEY);
+        return 'Anonymous';
+      }
+      return stored || 'Anonymous';
     }
 
     function setVisitorName(name) {
-      if (name && name !== 'Anonymous') {
+      if (name && name !== 'Anonymous' && !/^(?:h+i+|h+e+l+l+o+|h+e+y+|h+l+o+|h+l+w+|skip|no|nah)$/i.test(name.trim())) {
         sessionStorage.setItem(VISITOR_NAME_KEY, name);
       }
     }

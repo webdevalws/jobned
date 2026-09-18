@@ -347,7 +347,7 @@ try {
 
       <!-- Drawer Body: Messages -->
       <div class="drawer-body" id="drawerMessagesContainer">
-        <div class="loading-state" id="drawerLoading">
+        <div class="loading-state" id="drawerLoading" style="display: none;">
           <div class="spinner"></div>
           <span>Loading chat transcript...</span>
         </div>
@@ -1238,7 +1238,7 @@ try {
 
   /* Loading State */
   #transcriptModal .loading-state {
-    display: flex !important;
+    display: none !important;
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
@@ -1246,6 +1246,10 @@ try {
     color: #94A3B8 !important;
     height: 220px !important;
     font-size: 0.9rem !important;
+  }
+
+  #transcriptModal .loading-state.active {
+    display: flex !important;
   }
 
   #transcriptModal .spinner {
@@ -1409,13 +1413,19 @@ try {
       if (convIdEl) convIdEl.textContent = `Session: ${convId}`;
       if (avatarEl) avatarEl.textContent = convName && convName !== 'Anonymous' ? convName.charAt(0).toUpperCase() : '👤';
 
-      if (loadingEl) loadingEl.style.display = 'flex';
+      if (loadingEl) {
+        loadingEl.classList.add('active');
+        loadingEl.style.display = 'flex';
+      }
       if (messagesListEl) messagesListEl.innerHTML = '';
 
       fetch(`/api/masteradmin/bot/conversations?id=${encodeURIComponent(convId)}`)
         .then(res => res.json())
         .then(data => {
-          if (loadingEl) loadingEl.style.display = 'none';
+          if (loadingEl) {
+            loadingEl.classList.remove('active');
+            loadingEl.style.display = 'none';
+          }
           if (!data.success || !Array.isArray(data.messages) || data.messages.length === 0) {
             messagesListEl.innerHTML = `
               <div class="empty-state-card">
@@ -1461,7 +1471,10 @@ try {
           }
         })
         .catch(err => {
-          if (loadingEl) loadingEl.style.display = 'none';
+          if (loadingEl) {
+            loadingEl.classList.remove('active');
+            loadingEl.style.display = 'none';
+          }
           messagesListEl.innerHTML = `<div style="color: #F43F5E; text-align: center; padding: 2.5rem; font-weight: 500;">Failed to load transcript. Please try again.</div>`;
         });
     }
@@ -1471,6 +1484,10 @@ try {
       modal.classList.remove('active');
       modal.style.display = 'none';
       document.body.style.overflow = '';
+      if (loadingEl) {
+        loadingEl.classList.remove('active');
+        loadingEl.style.display = 'none';
+      }
     }
 
     if (backdrop) backdrop.addEventListener('click', closeModal);

@@ -42,7 +42,8 @@ export const onRequest = defineMiddleware(async ({ cookies, request, locals, red
     url.pathname.startsWith('/api/resumes/') ||
     url.pathname.startsWith('/api/payments/') ||
     url.pathname.startsWith('/api/jobs') ||
-    url.pathname.startsWith('/api/cron/')
+    url.pathname.startsWith('/api/cron/') ||
+    url.pathname.startsWith('/api/ai/chat')
   ) {
     return next();
   }

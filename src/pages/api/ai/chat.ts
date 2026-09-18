@@ -31,15 +31,19 @@ function formatCapitalizedName(str: string): string {
 }
 
 function isGenericRefusalOrQuestion(str: string): boolean {
-  const s = str.toLowerCase().trim();
+  const s = str.toLowerCase().trim().replace(/[.!?]+$/, '');
   const blocked = new Set([
     'no', 'nope', 'nah', 'not now', 'skip', 'anonymous', 'none', 'nothing', 'why', 'who', 'what', 'later',
     'dont want', "don't want", 'prefer not', 'secret', 'test', 'hi', 'hello', 'hey', 'help', 'jobs', 'job',
     'python', 'react', 'developer', 'pricing', 'apply', 'employer', 'candidate', 'screening', 'remote',
-    'salary', 'salaries', 'login', 'register', 'how', 'can you', 'show me', 'about', 'services', 'find'
+    'salary', 'salaries', 'login', 'register', 'how', 'can you', 'show me', 'about', 'services', 'find',
+    'good morning', 'good evening', 'good afternoon', 'thanks', 'thank you', 'ok', 'okay', 'sure', 'yes',
+    'yeah', 'yep', 'fine', 'great', 'awesome', 'cool', 'hiring', 'vacancy', 'openings', 'work', 'internship',
+    'fulltime', 'parttime', 'contract', 'freelance', 'engineer', 'frontend', 'backend', 'fullstack', 'designer',
+    'sales', 'marketing', 'manager', 'lead', 'senior', 'junior', 'fresher', 'intern', 'resume', 'cv', 'profile'
   ]);
   if (blocked.has(s)) return true;
-  if (/(job|role|remote|hiring|price|salary|apply|how|what|why|who|can|show|find|opening)/i.test(s)) return true;
+  if (/(job|role|remote|hiring|price|salary|salaries|apply|application|how|what|why|who|where|when|can|could|would|show|find|opening|vacancy|vacancies|search|hire|recruitment|employer|candidate|interview|resume|profile|account|register|login|signup)/i.test(s)) return true;
   return false;
 }
 
@@ -47,21 +51,31 @@ function extractNameFromQuery(text: string): string | null {
   const clean = text.trim();
   if (!clean) return null;
 
-  // Patterns like "My name is John Doe", "I am Alice", "I'm Rahul", "Call me Bob"
-  const prefixMatch = clean.match(/^(?:my\s+name\s+is|i\s+am|i'm|this\s+is|call\s+me)\s+([a-zA-Z\s'.]+)$/i);
-  if (prefixMatch) {
-    const candidate = prefixMatch[1].trim().replace(/[.!?]+$/, '');
-    if (candidate.length >= 2 && candidate.length <= 35 && !isGenericRefusalOrQuestion(candidate)) {
-      return formatCapitalizedName(candidate);
+  // Patterns like "My name is John Doe", "I am Alice", "I'm Rahul", "Call me Bob", "Myself Prashant"
+  const prefixPatterns = [
+    /(?:my\s+name\s+is|i\s+am|i'm|it's|this\s+is|call\s+me|you\s+can\s+call\s+me|myself)\s+([A-Za-z][A-Za-z'.\s]{1,35})/i,
+    /^(?:name\s*(?::|is)\s*)([A-Za-z][A-Za-z'.\s]{1,35})/i,
+  ];
+
+  for (const pattern of prefixPatterns) {
+    const match = clean.match(pattern);
+    if (match) {
+      let candidate = match[1].trim();
+      // Cut off trailing clause if user continued typing (e.g. "My name is Prashant, can you help me find jobs?")
+      candidate = candidate.split(/[,.!?\n]|(?:\s+(?:and|can|i|looking|who|how|what|please|where)\b)/i)[0].trim();
+      if (candidate.length >= 2 && candidate.length <= 35 && !isGenericRefusalOrQuestion(candidate)) {
+        return formatCapitalizedName(candidate);
+      }
     }
   }
 
-  // 1 to 3 alphabetic words like "Rahul", "Rahul Sharma", "Sarah Jenkins"
+  // 1 to 3 alphabetic words if message is short (e.g. "Prashant", "Prashant Sharma")
   const words = clean.split(/\s+/);
   if (words.length >= 1 && words.length <= 3) {
-    if (/^[a-zA-Z'.]+(?:\s+[a-zA-Z'.]+)*$/.test(clean) && clean.length >= 2 && clean.length <= 35) {
-      if (!isGenericRefusalOrQuestion(clean)) {
-        return formatCapitalizedName(clean);
+    const stripped = clean.replace(/[.!?]+$/, '').trim();
+    if (/^[a-zA-Z]+(?:\s+[a-zA-Z]+)*$/.test(stripped) && stripped.length >= 2 && stripped.length <= 35) {
+      if (!isGenericRefusalOrQuestion(stripped)) {
+        return formatCapitalizedName(stripped);
       }
     }
   }
@@ -169,29 +183,42 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     let currentVisitorName = existingConv?.visitorName || body.visitorName || initialName || 'Anonymous';
 
+    const userMessages = messages.filter(m => m.role === 'user');
+    const userMessageCount = userMessages.length;
+
     // Inspect if previous assistant message asked for the user's name
     const prevAssistantMsg = [...messages.slice(0, -1)].reverse().find(m => m.role === 'assistant');
-    const wasAskingForName = prevAssistantMsg && /(know your name|what is your name|may i know your name|tell me your name)/i.test(prevAssistantMsg.content);
+    const wasAskingForName = prevAssistantMsg && /(know your name|what is your name|may i know your name|tell me your name|what should i call you|may i ask your name)/i.test(prevAssistantMsg.content);
+
+    const hasEverAskedForName = messages.some(m => 
+      m.role === 'assistant' && /(know your name|what is your name|may i know your name|tell me your name|what should i call you|may i ask your name)/i.test(m.content)
+    );
 
     let earlyReply: string | null = null;
     let structuredJobs: StructuredJob[] = [];
+    let justLearnedName = false;
 
-    // 1. If bot previously asked for the user's name:
-    if (wasAskingForName && currentVisitorName === 'Anonymous') {
+    // 1. Check if user provided their name in this message (either in response to prompt or unprompted)
+    if (currentVisitorName === 'Anonymous') {
       const extractedName = extractNameFromQuery(userQuery);
       if (extractedName) {
         currentVisitorName = extractedName;
-        earlyReply = `Nice to meet you, **${extractedName}**! 👋\n\nHow can I help you today on JobNed?\n• **Search Jobs:** Browse active tech openings & remote positions.\n• **Job Seekers:** Guide on [creating your profile & uploading your resume](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new) & [AI candidate screening](/employer/screening).\n• **Pricing:** Compare [recruitment plans & features](/pricing).\n\nWhat would you like to explore?`;
-      } else if (/^(no|nope|nah|skip|anonymous|prefer not|not now)$/i.test(userQuery.trim())) {
+        justLearnedName = true;
+        const words = userQuery.split(/\s+/);
+        const isJustName = words.length <= 4 || /^(?:my\s+name\s+is|i\s+am|i'm|it's|this\s+is|call\s+me|myself)\s+([A-Za-z\s'.]+)[.!?]*$/i.test(userQuery);
+
+        if (isJustName) {
+          earlyReply = `Nice to meet you, **${extractedName}**! 👋\n\nHow can I help you today on JobNed?\n• **Search Jobs:** Browse active tech openings & remote positions.\n• **Job Seekers:** Guide on [creating your profile & uploading your resume](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new) & [AI candidate screening](/employer/screening).\n• **Pricing:** Compare [recruitment plans & features](/pricing).\n\nWhat would you like to explore, **${extractedName}**?`;
+        }
+      } else if (wasAskingForName && /^(no|nope|nah|skip|anonymous|prefer not|not now)$/i.test(userQuery.trim())) {
         earlyReply = `No problem at all! How can I assist you today on JobNed?\n\n• **Search Jobs:** Browse open tech roles & remote positions.\n• **Job Seekers:** Guide on [creating your profile](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new).\n• **Pricing:** Compare [recruitment plans](/pricing).`;
       }
-      // If user directly asked a question instead of answering their name, fall through to answer their question, keeping them as Anonymous!
     }
 
-    // 2. If user just said hello / greeting and name is currently Anonymous:
+    // 2. If user just said hello / greeting and no earlyReply yet:
     if (!earlyReply && /^(hi|hl|hello|hey|greetings|start)$/i.test(userQuery.trim())) {
       if (currentVisitorName === 'Anonymous') {
-        earlyReply = `👋 Hello! Welcome to **JobNed** — your AI-powered job and talent matching platform.\n\nBefore we begin, may I know your name so I can assist you better?`;
+        earlyReply = `👋 Hello! Welcome to **JobNed** — your AI-powered job and talent matching platform.\n\nI can help you explore active jobs, guide your resume & applications, or assist employers with hiring and pricing.\n\nWhat would you like to explore today? (And by the way, may I know your name so I can assist you better?)`;
       } else {
         earlyReply = `👋 Hello again, **${currentVisitorName}**! How can I assist you today?\n\n• **Search Jobs:** Browse open tech roles & remote positions.\n• **Job Seekers:** Guide on [creating your profile](/register?role=employee).\n• **Employers:** Instructions on [posting jobs](/employer/jobs/new).\n• **Pricing:** Compare [recruitment plans](/pricing).`;
       }
@@ -347,8 +374,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const userNameContext = currentVisitorName && currentVisitorName !== 'Anonymous'
-      ? `User's Name: "${currentVisitorName}". Address them warmly by their name where natural.`
-      : `User is Anonymous.`;
+      ? `CRITICAL PERSONALIZATION INSTRUCTION:
+- The user's name is "${currentVisitorName}".
+- Always address them warmly by their name (e.g., "Certainly, ${currentVisitorName}!", "Here are the top openings for you, ${currentVisitorName}:", "Great question, ${currentVisitorName}!") throughout your answer.
+- Talk directly with ${currentVisitorName} using their name so the conversation feels personal, friendly, and attentive.`
+      : `USER STATUS: The user is currently Anonymous.`;
 
     const systemPrompt = `You are the official JobNed AI Guide, the high-performance AI assistant for JobNed (https://jobned.com) — a modern recruitment and job-seeking platform.
 The user is currently on the page: "${currentPath}".
@@ -394,18 +424,21 @@ CRITICAL RULES:
     let reply = '';
 
     if (!ai) {
+      const namePrefix = (currentVisitorName && currentVisitorName !== 'Anonymous') ? `Certainly, **${currentVisitorName}**! ` : '';
       if (structuredJobs.length > 0) {
-        reply = `Here are the active positions matching your search on JobNed:\n\n` +
+        reply = `${namePrefix}Here are the active positions matching your search on JobNed:\n\n` +
           structuredJobs.map(j => `• **[${j.jobTitle}](/jobs/${j.id})** at ${j.companyName}\n  📍 ${j.locationRemote ? '🏠 Remote' : `${j.locationCity || 'Onsite'}`} | 💼 ${j.employmentType || 'Full-time'}${j.salaryMin ? ` | 💵 ${j.salaryMin.toLocaleString()}-${j.salaryMax?.toLocaleString()} ${j.salaryCurrency}` : ''}`).join('\n\n') +
           `\n\nBrowse all open roles on the [Jobs Board](/jobs) or [Register](/register) to submit your application.`;
       } else if (/account|register|signup|sign up/i.test(userQuery)) {
-        reply = `You can register on JobNed in two ways:\n\n• **Job Seekers:** Sign up at [/register?role=employee](/register?role=employee) and upload your resume at [/employee/profile](/employee/profile) for automated AI matching.\n• **Employers:** Register at [/register?role=employer](/register?role=employer) to post jobs and screen applicants.`;
+        reply = `${namePrefix}You can register on JobNed in two ways:\n\n• **Job Seekers:** Sign up at [/register?role=employee](/register?role=employee) and upload your resume at [/employee/profile](/employee/profile) for automated AI matching.\n• **Employers:** Register at [/register?role=employer](/register?role=employer) to post jobs and screen applicants.`;
       } else if (/post|hiring|employer|how to post/i.test(userQuery)) {
-        reply = `To post a job as an employer:\n\n1. Log into your account at [/login](/login).\n2. Navigate to [Post a Job](/employer/jobs/new).\n3. Fill in the job title, requirements, salary, and location (or toggle Remote).\n4. Click **Publish Job** to go live immediately across JobNed.`;
+        reply = `${namePrefix}To post a job as an employer:\n\n1. Log into your account at [/login](/login).\n2. Navigate to [Post a Job](/employer/jobs/new).\n3. Fill in the job title, requirements, salary, and location (or toggle Remote).\n4. Click **Publish Job** to go live immediately across JobNed.`;
       } else if (/price|pricing|plan|cost|subscription/i.test(userQuery)) {
-        reply = `JobNed offers the following recruitment plans and pricing:\n\n• **Basic Plan:** Free tier — 30 job postings & 500 resume views.\n• **Growth Plan:** High volume — 60 job postings & 3,000 resume views.\n• **Premium Plan:** Enterprise scale — Unlimited job postings, unlimited resume views, and priority AI matching.\n\nFor full details and upgrades, visit our [Pricing Plans](/pricing) page.`;
+        reply = `${namePrefix}JobNed offers the following recruitment plans and pricing:\n\n• **Basic Plan:** Free tier — 30 job postings & 500 resume views.\n• **Growth Plan:** High volume — 60 job postings & 3,000 resume views.\n• **Premium Plan:** Enterprise scale — Unlimited job postings, unlimited resume views, and priority AI matching.\n\nFor full details and upgrades, visit our [Pricing Plans](/pricing) page.`;
       } else {
-        reply = `I am your **JobNed AI Guide**. You can browse active jobs at [/jobs](/jobs), register an account at [/register](/register), or post a new role at [/employer/jobs/new](/employer/jobs/new).\n\nWhat would you like to explore?`;
+        reply = (currentVisitorName && currentVisitorName !== 'Anonymous')
+          ? `I am your **JobNed AI Guide**, **${currentVisitorName}**! You can browse active jobs at [/jobs](/jobs), register an account at [/register](/register), or post a new role at [/employer/jobs/new](/employer/jobs/new).\n\nWhat would you like to explore?`
+          : `I am your **JobNed AI Guide**. You can browse active jobs at [/jobs](/jobs), register an account at [/register](/register), or post a new role at [/employer/jobs/new](/employer/jobs/new).\n\nWhat would you like to explore?`;
       }
     } else {
       const recentMessages = messages.slice(-6).map(m => ({
@@ -423,6 +456,22 @@ CRITICAL RULES:
       });
 
       reply = response?.response || response?.result?.response || 'I am here to help you navigate JobNed. You can browse active jobs at [/jobs](/jobs) or register at [/register](/register).';
+    }
+
+    // If user just introduced their name in this message, acknowledge it warmly if not already mentioned
+    if (justLearnedName && currentVisitorName !== 'Anonymous' && !reply.toLowerCase().includes(currentVisitorName.toLowerCase())) {
+      reply = `Nice to meet you, **${currentVisitorName}**! 👋\n\n` + reply;
+    }
+
+    // If user is Anonymous after 1 or 2 questions and bot hasn't asked yet, politely ask for their name
+    if (
+      currentVisitorName === 'Anonymous' &&
+      !hasEverAskedForName &&
+      userMessageCount >= 1 &&
+      userMessageCount <= 2 &&
+      !/(know your name|what is your name|what should i call you|tell me your name|may i ask your name)/i.test(reply)
+    ) {
+      reply += `\n\n💬 *By the way, may I know your name so I can assist you better and address you personally?*`;
     }
 
     // Persist conversation and messages to D1 database

@@ -245,5 +245,26 @@ export const crawlerSettings = sqliteTable('crawler_settings', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 
+// --- BOT CONVERSATIONS (AI CHATBOT LOGGING) ---
+export const botConversations = sqliteTable('bot_conversations', {
+  id: text('id').primaryKey(), // UUID session id
+  visitorName: text('visitor_name').default('Anonymous').notNull(),
+  visitorEmail: text('visitor_email'),
+  userId: text('user_id'), // optional references users.id
+  status: text('status').default('active').notNull(), // 'active' | 'closed'
+  messageCount: integer('message_count').default(0).notNull(),
+  lastMessage: text('last_message'),
+  currentPath: text('current_path'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  isDeleted: integer('is_deleted', { mode: 'boolean' }).default(false),
+});
 
-
+// --- BOT MESSAGES ---
+export const botMessages = sqliteTable('bot_messages', {
+  id: text('id').primaryKey(), // UUID
+  conversationId: text('conversation_id').notNull(),
+  sender: text('sender').notNull(), // 'user' | 'assistant'
+  content: text('content').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});

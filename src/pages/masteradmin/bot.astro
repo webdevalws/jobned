@@ -1,0 +1,1516 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import { getDb } from '../../lib/db';
+import { botConversations, botMessages } from '../../db/schema';
+import { desc, eq } from 'drizzle-orm';
+
+Astro.response.headers.set(
+  "Cache-Control",
+  "no-store, no-cache, must-revalidate, max-age=0",
+);
+
+const payload = Astro.locals.user;
+if (!payload || (payload.userType !== 'masteradmin' && payload.userType !== 'superadmin')) {
+  return Astro.redirect('/login');
+}
+
+const db = getDb();
+
+let conversations: any[] = [];
+let totalConversationsCount = 0;
+let namedCount = 0;
+let anonymousCount = 0;
+let totalMessagesLogged = 0;
+
+try {
+  conversations = await db
+    .select()
+    .from(botConversations)
+    .where(eq(botConversations.isDeleted, false))
+    .orderBy(desc(botConversations.updatedAt))
+    .all();
+
+  totalConversationsCount = conversations.length;
+  namedCount = conversations.filter(c => c.visitorName && c.visitorName !== 'Anonymous').length;
+  anonymousCount = conversations.filter(c => !c.visitorName || c.visitorName === 'Anonymous').length;
+  totalMessagesLogged = conversations.reduce((acc, c) => acc + (Number(c.messageCount) || 0), 0);
+} catch (e) {
+  console.error('Error fetching bot conversations:', e);
+}
+---
+
+<DashboardLayout title="Bot Conversations - MasterAdmin" userType="masteradmin" activePath="/masteradmin/bot">
+  <div class="bot-admin-container">
+    <!-- Header Section -->
+    <div class="dashboard-header mb-4">
+      <div class="header-titles">
+        <span class="badge-tag">AI Chat Logs & User Intelligence</span>
+        <h1>JobNed AI Bot Conversations</h1>
+        <p class="subtitle">Monitor live visitor interactions, captured names, user questions, and automated platform guidance.</p>
+      </div>
+      <div class="stats-counter-pill">
+        <strong>{totalConversationsCount}</strong> Total Conversations
+      </div>
+    </div>
+
+    <!-- Metric Overview Cards (2x2 on mobile, 4x1 on desktop) -->
+    <div class="bot-metrics-grid mb-4">
+      <div class="metric-card">
+        <div class="metric-icon metric-purple">🤖</div>
+        <div class="metric-info">
+          <span class="metric-label">Total Chats</span>
+          <span class="metric-value">{totalConversationsCount}</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon metric-green">👤</div>
+        <div class="metric-info">
+          <span class="metric-label">Named Users</span>
+          <span class="metric-value">{namedCount}</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon metric-gray">🕵️</div>
+        <div class="metric-info">
+          <span class="metric-label">Anonymous</span>
+          <span class="metric-value">{anonymousCount}</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon metric-blue">💬</div>
+        <div class="metric-info">
+          <span class="metric-label">Messages</span>
+          <span class="metric-value">{totalMessagesLogged}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div class="controls-bar-container mb-4">
+      <div class="search-input-wrapper">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          id="botSearchInput"
+          class="search-input"
+          placeholder="Search by visitor name, message snippet, or ID..."
+        />
+      </div>
+      <div class="filter-group">
+        <select id="botFilterSelect" class="filter-select">
+          <option value="all">All Visitors ({totalConversationsCount})</option>
+          <option value="named">Named Users ({namedCount})</option>
+          <option value="anonymous">Anonymous ({anonymousCount})</option>
+        </select>
+      </div>
+    </div>
+
+    {conversations.length === 0 ? (
+      <div class="empty-state-card">
+        <div class="empty-icon">🤖</div>
+        <h3>No Chat Conversations Yet</h3>
+        <p>When visitors chat with JobNed AI, conversations and captured names will appear here.</p>
+      </div>
+    ) : (
+      <>
+        <!-- 1. DESKTOP & TABLET TABLE VIEW (Hidden on screens < 768px) -->
+        <div class="bot-table-view">
+          <div class="table-card">
+            <div class="table-responsive">
+              <table class="data-table" id="botConversationsTable">
+                <thead>
+                  <tr>
+                    <th>Visitor / Name</th>
+                    <th>Type</th>
+                    <th>Last Message Snippet</th>
+                    <th>Page Source</th>
+                    <th>Messages</th>
+                    <th>Last Active</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="botTableBody">
+                  {conversations.map((conv) => {
+                    const isNamed = conv.visitorName && conv.visitorName !== 'Anonymous';
+                    const nameDisplay = isNamed ? conv.visitorName : 'Anonymous';
+                    const dateVal = conv.updatedAt || conv.createdAt;
+                    let formattedDate = 'Just now';
+                    if (dateVal) {
+                      try {
+                        const d = typeof dateVal === 'number' ? (dateVal < 10000000000 ? new Date(dateVal * 1000) : new Date(dateVal)) : new Date(dateVal);
+                        if (!isNaN(d.getTime())) {
+                          formattedDate = d.toLocaleString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          });
+                        }
+                      } catch (e) {}
+                    }
+
+                    const searchBlob = `${conv.id} ${nameDisplay} ${conv.lastMessage || ''} ${conv.currentPath || ''}`.toLowerCase();
+
+                    return (
+                      <tr
+                        class="bot-row"
+                        data-search={searchBlob}
+                        data-type={isNamed ? 'named' : 'anonymous'}
+                        data-id={conv.id}
+                        data-name={nameDisplay}
+                      >
+                        <td>
+                          <div class="visitor-cell">
+                            <div class={`visitor-avatar ${isNamed ? 'avatar-named' : 'avatar-anon'}`}>
+                              {isNamed ? nameDisplay.charAt(0).toUpperCase() : '👤'}
+                            </div>
+                            <div class="visitor-details">
+                              <span class="visitor-name-title">{nameDisplay}</span>
+                              <span class="visitor-id-sub">{conv.id.slice(0, 14)}...</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td>
+                          {isNamed ? (
+                            <span class="status-badge badge-named">✓ Named</span>
+                          ) : (
+                            <span class="status-badge badge-anon">Anonymous</span>
+                          )}
+                        </td>
+
+                        <td>
+                          <div class="msg-snippet-cell" title={conv.lastMessage || 'No messages'}>
+                            {conv.lastMessage ? conv.lastMessage : <em style="color: var(--color-text-muted);">Started chat</em>}
+                          </div>
+                        </td>
+
+                        <td>
+                          <span class="page-source-tag">
+                            {conv.currentPath || '/'}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span class="msg-count-badge">
+                            {conv.messageCount || 0} msgs
+                          </span>
+                        </td>
+
+                        <td>
+                          <span class="date-cell">{formattedDate}</span>
+                        </td>
+
+                        <td style="text-align: right;">
+                          <div class="action-buttons-group">
+                            <button
+                              type="button"
+                              class="btn-view-chat"
+                              data-conv-id={conv.id}
+                              data-conv-name={nameDisplay}
+                              title="View Full Chat Transcript"
+                            >
+                              💬 View Chat
+                            </button>
+                            <button
+                              type="button"
+                              class="btn-delete-conv"
+                              data-conv-id={conv.id}
+                              title="Delete Conversation"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. MOBILE CARDS VIEW (Visible only on screens < 768px for perfect touch responsiveness) -->
+        <div class="bot-mobile-cards-view">
+          {conversations.map((conv) => {
+            const isNamed = conv.visitorName && conv.visitorName !== 'Anonymous';
+            const nameDisplay = isNamed ? conv.visitorName : 'Anonymous';
+            const dateVal = conv.updatedAt || conv.createdAt;
+            let formattedDate = 'Just now';
+            if (dateVal) {
+              try {
+                const d = typeof dateVal === 'number' ? (dateVal < 10000000000 ? new Date(dateVal * 1000) : new Date(dateVal)) : new Date(dateVal);
+                if (!isNaN(d.getTime())) {
+                  formattedDate = d.toLocaleString([], {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  });
+                }
+              } catch (e) {}
+            }
+
+            const searchBlob = `${conv.id} ${nameDisplay} ${conv.lastMessage || ''} ${conv.currentPath || ''}`.toLowerCase();
+
+            return (
+              <div
+                class="bot-mobile-card"
+                data-search={searchBlob}
+                data-type={isNamed ? 'named' : 'anonymous'}
+                data-id={conv.id}
+                data-name={nameDisplay}
+              >
+                <!-- Card Header -->
+                <div class="mobile-card-header">
+                  <div class="mobile-card-user">
+                    <div class={`visitor-avatar ${isNamed ? 'avatar-named' : 'avatar-anon'}`}>
+                      {isNamed ? nameDisplay.charAt(0).toUpperCase() : '👤'}
+                    </div>
+                    <div class="mobile-user-details">
+                      <div class="mobile-name-row">
+                        <span class="visitor-name-title">{nameDisplay}</span>
+                        {isNamed ? (
+                          <span class="status-badge badge-named">✓ Named</span>
+                        ) : (
+                          <span class="status-badge badge-anon">Anonymous</span>
+                        )}
+                      </div>
+                      <span class="visitor-id-sub">ID: {conv.id.slice(0, 16)}...</span>
+                    </div>
+                  </div>
+                  <span class="date-cell mobile-date">{formattedDate}</span>
+                </div>
+
+                <!-- Card Message Snippet -->
+                <div class="mobile-card-snippet">
+                  <span class="snippet-bubble">
+                    {conv.lastMessage || 'Started conversation'}
+                  </span>
+                </div>
+
+                <!-- Card Footer & Actions -->
+                <div class="mobile-card-footer">
+                  <div class="mobile-card-tags">
+                    <span class="page-source-tag">{conv.currentPath || '/'}</span>
+                    <span class="msg-count-badge">{conv.messageCount || 0} msgs</span>
+                  </div>
+                  <div class="action-buttons-group">
+                    <button
+                      type="button"
+                      class="btn-view-chat"
+                      data-conv-id={conv.id}
+                      data-conv-name={nameDisplay}
+                      title="View Full Chat Transcript"
+                    >
+                      💬 View Chat
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-delete-conv"
+                      data-conv-id={conv.id}
+                      title="Delete Conversation"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    )}
+  </div>
+
+  <!-- Transcript Modal Drawer -->
+  <div id="transcriptModal" class="transcript-modal" style="display: none;">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-drawer">
+      <!-- Drawer Header -->
+      <div class="drawer-header">
+        <div class="drawer-header-left">
+          <div class="drawer-avatar" id="drawerAvatar">👤</div>
+          <div class="drawer-header-titles">
+            <h3 id="drawerVisitorName">Visitor Chat</h3>
+            <span class="drawer-conv-id" id="drawerConvId">ID: ...</span>
+          </div>
+        </div>
+        <div class="drawer-header-actions">
+          <button type="button" id="drawerCloseBtn" class="drawer-close-btn" aria-label="Close">✕</button>
+        </div>
+      </div>
+
+      <!-- Drawer Body: Messages -->
+      <div class="drawer-body" id="drawerMessagesContainer">
+        <div class="loading-state" id="drawerLoading">
+          <div class="spinner"></div>
+          <span>Loading chat transcript...</span>
+        </div>
+        <div id="drawerMessagesList" class="drawer-messages-list"></div>
+      </div>
+
+      <!-- Drawer Footer -->
+      <div class="drawer-footer">
+        <span class="drawer-footer-text">JobNed AI Live Interaction Record</span>
+        <button type="button" id="drawerCloseBtnBottom" class="btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+</DashboardLayout>
+
+<style>
+  .bot-admin-container {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Header & Badges */
+  .badge-tag {
+    display: inline-block;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(124, 58, 237, 0.12);
+    color: var(--color-primary, #A78BFA);
+    border-radius: 9999px;
+    margin-bottom: 0.5rem;
+    border: 1px solid rgba(124, 58, 237, 0.25);
+  }
+
+  .stats-counter-pill {
+    padding: 0.5rem 1rem;
+    background: var(--color-surface, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    color: var(--color-text-muted, #94A3B8);
+    white-space: nowrap;
+    align-self: flex-start;
+  }
+  .stats-counter-pill strong {
+    color: var(--color-primary, #A78BFA);
+  }
+
+  /* Metrics Grid */
+  .bot-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    width: 100%;
+  }
+
+  .metric-card {
+    background: var(--color-surface, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    padding: 1.15rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    min-width: 0;
+  }
+  .metric-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(124, 58, 237, 0.35);
+  }
+
+  .metric-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    flex-shrink: 0;
+  }
+  .metric-purple { background: rgba(124, 58, 237, 0.15); border: 1px solid rgba(124, 58, 237, 0.3); }
+  .metric-green { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); }
+  .metric-gray { background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); }
+  .metric-blue { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); }
+
+  .metric-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .metric-label {
+    font-size: 0.78rem;
+    color: var(--color-text-muted, #94A3B8);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .metric-value {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--color-text-main, #F8FAFC);
+    line-height: 1.2;
+  }
+
+  /* Controls Bar */
+  .controls-bar-container {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    width: 100%;
+  }
+  .search-input-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+  }
+  .search-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.95rem;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.75rem;
+    border-radius: 8px;
+    background: var(--color-surface, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+    color: var(--color-text-main, #F8FAFC);
+    font-size: 0.9rem;
+    box-sizing: border-box;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #7C3AED);
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+  }
+
+  .filter-group {
+    flex-shrink: 0;
+  }
+  .filter-select {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: var(--color-surface, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+    color: var(--color-text-main, #F8FAFC);
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  /* ==========================================================================
+     1. DESKTOP/TABLET TABLE VIEW (≥ 768px)
+     ========================================================================== */
+  .bot-table-view {
+    display: block;
+    width: 100%;
+  }
+
+  .table-card {
+    background: var(--color-surface, rgba(255, 255, 255, 0.02));
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .table-responsive {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.9rem;
+  }
+  .data-table th {
+    padding: 0.875rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted, #94A3B8);
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.05));
+    vertical-align: middle;
+  }
+  .data-table tr:last-child td {
+    border-bottom: none;
+  }
+  .data-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  /* Visitor Cell */
+  .visitor-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 170px;
+    white-space: nowrap;
+  }
+  .visitor-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+  .avatar-named {
+    background: linear-gradient(135deg, #8B5CF6, #6D28D9);
+    color: #FFF;
+  }
+  .avatar-anon {
+    background: rgba(148, 163, 184, 0.18);
+    color: #94A3B8;
+  }
+
+  .visitor-details {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .visitor-name-title {
+    font-weight: 600;
+    color: var(--color-text-main, #F8FAFC);
+    white-space: nowrap;
+  }
+  .visitor-id-sub {
+    font-size: 0.73rem;
+    color: var(--color-text-muted, #94A3B8);
+    font-family: monospace;
+    white-space: nowrap;
+  }
+
+  /* Status Badges */
+  .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-named {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10B981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+  .badge-anon {
+    background: rgba(148, 163, 184, 0.12);
+    color: #94A3B8;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+  }
+
+  /* Message Snippet */
+  .msg-snippet-cell {
+    max-width: 280px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-muted, #94A3B8);
+    font-size: 0.85rem;
+  }
+
+  /* Page Source Tag */
+  .page-source-tag {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--color-text-muted, #94A3B8);
+    white-space: nowrap;
+  }
+
+  /* Message Count Badge */
+  .msg-count-badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    background: rgba(124, 58, 237, 0.12);
+    color: var(--color-primary, #A78BFA);
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .date-cell {
+    font-size: 0.82rem;
+    color: var(--color-text-muted, #94A3B8);
+    white-space: nowrap;
+  }
+
+  /* Action Buttons */
+  .action-buttons-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    white-space: nowrap;
+  }
+
+  .btn-view-chat {
+    padding: 0.4rem 0.75rem;
+    background: rgba(124, 58, 237, 0.15);
+    border: 1px solid rgba(124, 58, 237, 0.35);
+    color: var(--color-primary, #A78BFA);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .btn-view-chat:hover {
+    background: var(--color-primary, #7C3AED);
+    color: #FFF;
+  }
+
+  .btn-delete-conv {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 0.4rem;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
+  }
+  .btn-delete-conv:hover {
+    opacity: 1;
+    background: rgba(244, 63, 94, 0.15);
+    border-color: rgba(244, 63, 94, 0.3);
+  }
+
+  /* ==========================================================================
+     2. MOBILE CARDS VIEW (< 768px)
+     ========================================================================== */
+  .bot-mobile-cards-view {
+    display: none; /* hidden by default on desktop */
+  }
+
+  .bot-mobile-card {
+    background: var(--color-surface, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: border-color 0.2s ease;
+  }
+  .bot-mobile-card:hover {
+    border-color: rgba(124, 58, 237, 0.3);
+  }
+
+  .mobile-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .mobile-card-user {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    flex: 1;
+  }
+  .mobile-user-details {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .mobile-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .mobile-date {
+    font-size: 0.72rem;
+    color: var(--color-text-muted, #94A3B8);
+    flex-shrink: 0;
+  }
+
+  .mobile-card-snippet {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+  }
+  .snippet-bubble {
+    font-size: 0.82rem;
+    color: var(--color-text-muted, #94A3B8);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+
+  .mobile-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .mobile-card-tags {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  /* Empty State */
+  .empty-state-card {
+    background: var(--color-surface, rgba(255, 255, 255, 0.02));
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    padding: 3rem 1rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .empty-state-card h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #F8FAFC;
+  }
+  .empty-state-card p {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.85rem;
+    color: #94A3B8;
+  }
+
+  /* (Transcript Modal Drawer styles are defined below in <style is:global> to ensure dynamic chat bubbles are styled correctly) */
+
+  /* ==========================================================================
+     RESPONSIVE MEDIA QUERIES FOR ALL RATIOS
+     ========================================================================== */
+
+  /* Tablet & below (< 1024px) */
+  @media (max-width: 1024px) {
+    .bot-metrics-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+  }
+
+  /* Mobile Phone & below (< 768px) */
+  @media (max-width: 768px) {
+    /* Hide the wide desktop table */
+    .bot-table-view {
+      display: none !important;
+    }
+
+    /* Show the clean, responsive mobile cards */
+    .bot-mobile-cards-view {
+      display: flex !important;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+    }
+
+    .dashboard-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .header-titles h1 {
+      font-size: 1.45rem !important;
+    }
+
+    .controls-bar-container {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.65rem;
+    }
+    .search-input-wrapper {
+      min-width: 100%;
+    }
+    .filter-group {
+      width: 100%;
+    }
+    .filter-select {
+      width: 100%;
+    }
+
+    /* Modal drawer full-screen on mobile */
+    .modal-drawer {
+      max-width: 100% !important;
+      width: 100% !important;
+      border-left: none;
+    }
+    .chat-msg-row {
+      max-width: 92%;
+    }
+  }
+
+  /* Ultra-small screens (< 420px: iPhone SE, XR portrait) */
+  @media (max-width: 420px) {
+    .bot-metrics-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+    .metric-card {
+      padding: 0.85rem 0.65rem;
+      gap: 0.5rem;
+    }
+    .metric-icon {
+      width: 36px;
+      height: 36px;
+      font-size: 1.15rem;
+    }
+    .metric-value {
+      font-size: 1.25rem;
+    }
+    .metric-label {
+      font-size: 0.72rem;
+    }
+
+    .mobile-name-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+    }
+  }
+</style>
+
+<style is:global>
+  /* ==========================================================================
+     GLOBAL STYLES FOR DYNAMIC CHAT TRANSCRIPT DRAWER & MESSAGES
+     Must be global so dynamic DOM nodes created in JS receive full styling
+     ========================================================================== */
+  #transcriptModal.transcript-modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 100000 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+  }
+
+  #transcriptModal .modal-backdrop {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: rgba(0, 0, 0, 0.75) !important;
+    backdrop-filter: blur(5px) !important;
+  }
+
+  #transcriptModal .modal-drawer {
+    position: relative !important;
+    z-index: 2 !important;
+    width: 100% !important;
+    max-width: 580px !important;
+    height: 100% !important;
+    background: #0D1117 !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.12) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: -10px 0 35px rgba(0, 0, 0, 0.7) !important;
+    animation: slideInRightModal 0.25s ease-out !important;
+    color: #F8FAFC !important;
+  }
+
+  @keyframes slideInRightModal {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+
+  #transcriptModal .drawer-header {
+    padding: 1.15rem 1.35rem !important;
+    background: #161B22 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.75rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  #transcriptModal .drawer-header-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.85rem !important;
+    min-width: 0 !important;
+  }
+
+  #transcriptModal .drawer-avatar {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, #8B5CF6, #6D28D9) !important;
+    color: #FFFFFF !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: 700 !important;
+    font-size: 1.15rem !important;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35) !important;
+    flex-shrink: 0 !important;
+  }
+
+  #transcriptModal .drawer-header-titles {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+  }
+
+  #transcriptModal .drawer-header h3 {
+    margin: 0 !important;
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    color: #FFFFFF !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  #transcriptModal .drawer-conv-id {
+    font-size: 0.75rem !important;
+    color: #94A3B8 !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    margin-top: 0.15rem !important;
+  }
+
+  #transcriptModal .drawer-close-btn {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #CBD5E1 !important;
+    font-size: 1.15rem !important;
+    cursor: pointer !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s ease !important;
+    flex-shrink: 0 !important;
+  }
+  #transcriptModal .drawer-close-btn:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #FFFFFF !important;
+  }
+
+  #transcriptModal .drawer-body {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 1.35rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #0B0E14 !important;
+    gap: 1.1rem !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  #transcriptModal .drawer-messages-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.25rem !important;
+    width: 100% !important;
+  }
+
+  /* Chat Message Rows */
+  #transcriptModal .chat-msg-row {
+    display: flex !important;
+    flex-direction: column !important;
+    max-width: 86% !important;
+    position: relative !important;
+    animation: fadeInMsg 0.2s ease-out !important;
+  }
+  @keyframes fadeInMsg {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  #transcriptModal .user-msg-row {
+    align-self: flex-end !important;
+    align-items: flex-end !important;
+  }
+
+  #transcriptModal .bot-msg-row {
+    align-self: flex-start !important;
+    align-items: flex-start !important;
+  }
+
+  #transcriptModal .chat-msg-sender {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    margin-bottom: 0.35rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    letter-spacing: 0.02em !important;
+  }
+  #transcriptModal .user-msg-row .chat-msg-sender {
+    color: #C4B5FD !important; /* Soft bright lavender */
+    text-align: right !important;
+  }
+  #transcriptModal .bot-msg-row .chat-msg-sender {
+    color: #38BDF8 !important; /* Vivid sky blue */
+    text-align: left !important;
+  }
+
+  /* Chat Message Bubbles */
+  #transcriptModal .chat-msg-bubble {
+    padding: 0.9rem 1.15rem !important;
+    border-radius: 14px !important;
+    font-size: 0.92rem !important;
+    line-height: 1.55 !important;
+    word-break: break-word !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  /* User Message Bubble: Rich Vibrant Gradient */
+  #transcriptModal .user-msg-row .chat-msg-bubble {
+    background: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%) !important;
+    color: #FFFFFF !important;
+    border-bottom-right-radius: 3px !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  }
+
+  /* Bot Message Bubble: Deep Sleek Card with High Contrast */
+  #transcriptModal .bot-msg-row .chat-msg-bubble {
+    background: #1C2333 !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    color: #F8FAFC !important;
+    border-bottom-left-radius: 3px !important;
+  }
+
+  /* Text & Markdown styling inside bubbles */
+  #transcriptModal .chat-msg-bubble p {
+    margin: 0 0 0.55rem 0 !important;
+    color: inherit !important;
+    line-height: 1.55 !important;
+  }
+  #transcriptModal .chat-msg-bubble p:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  #transcriptModal .chat-msg-bubble strong {
+    font-weight: 700 !important;
+    color: #FFFFFF !important;
+  }
+
+  #transcriptModal .chat-msg-bubble em {
+    font-style: italic !important;
+    color: inherit !important;
+  }
+
+  #transcriptModal .bot-msg-row .chat-msg-bubble a {
+    color: #38BDF8 !important;
+    text-decoration: underline !important;
+    text-underline-offset: 3px !important;
+    font-weight: 600 !important;
+    word-break: break-all !important;
+    transition: color 0.15s ease !important;
+  }
+  #transcriptModal .bot-msg-row .chat-msg-bubble a:hover {
+    color: #7DD3FC !important;
+  }
+
+  #transcriptModal .user-msg-row .chat-msg-bubble a {
+    color: #FDE047 !important;
+    text-decoration: underline !important;
+    text-underline-offset: 3px !important;
+    font-weight: 600 !important;
+  }
+
+  #transcriptModal .chat-msg-bubble ul,
+  #transcriptModal .chat-msg-bubble ol {
+    margin: 0.4rem 0 0.6rem 1.25rem !important;
+    padding: 0 !important;
+    color: inherit !important;
+  }
+  #transcriptModal .chat-msg-bubble li {
+    margin-bottom: 0.35rem !important;
+    color: inherit !important;
+    line-height: 1.5 !important;
+  }
+
+  #transcriptModal .chat-msg-bubble code {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    padding: 0.15rem 0.4rem !important;
+    border-radius: 4px !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    font-size: 0.85em !important;
+    color: #E2E8F0 !important;
+  }
+
+  /* Timestamps */
+  #transcriptModal .chat-msg-time {
+    font-size: 0.72rem !important;
+    color: #94A3B8 !important;
+    margin-top: 0.35rem !important;
+    letter-spacing: 0.02em !important;
+  }
+  #transcriptModal .user-msg-row .chat-msg-time {
+    text-align: right !important;
+  }
+  #transcriptModal .bot-msg-row .chat-msg-time {
+    text-align: left !important;
+  }
+
+  /* Drawer Footer */
+  #transcriptModal .drawer-footer {
+    padding: 0.95rem 1.35rem !important;
+    background: #161B22 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-shrink: 0 !important;
+  }
+
+  #transcriptModal .drawer-footer-text {
+    font-size: 0.75rem !important;
+    color: #94A3B8 !important;
+  }
+
+  #transcriptModal .btn-secondary {
+    padding: 0.45rem 1rem !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 6px !important;
+    color: #FFFFFF !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: background 0.2s ease !important;
+  }
+  #transcriptModal .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.16) !important;
+  }
+
+  /* Loading State */
+  #transcriptModal .loading-state {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.85rem !important;
+    color: #94A3B8 !important;
+    height: 220px !important;
+    font-size: 0.9rem !important;
+  }
+
+  #transcriptModal .spinner {
+    width: 28px !important;
+    height: 28px !important;
+    border: 3px solid rgba(124, 58, 237, 0.25) !important;
+    border-top-color: #A78BFA !important;
+    border-radius: 50% !important;
+    animation: modalSpin 0.8s linear infinite !important;
+  }
+  @keyframes modalSpin { to { transform: rotate(360deg); } }
+
+  /* Empty state inside modal */
+  #transcriptModal .empty-state-card {
+    background: transparent !important;
+    border: none !important;
+    padding: 3rem 1rem !important;
+    text-align: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  #transcriptModal .empty-state-card .empty-icon {
+    font-size: 2.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  #transcriptModal .empty-state-card h3 {
+    margin: 0 !important;
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    color: #F8FAFC !important;
+  }
+  #transcriptModal .empty-state-card p {
+    margin: 0.35rem 0 0 0 !important;
+    font-size: 0.85rem !important;
+    color: #94A3B8 !important;
+  }
+
+  @media (max-width: 768px) {
+    #transcriptModal .modal-drawer {
+      max-width: 100% !important;
+      width: 100% !important;
+      border-left: none !important;
+    }
+    #transcriptModal .chat-msg-row {
+      max-width: 92% !important;
+    }
+  }
+</style>
+
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('botSearchInput');
+    const filterSelect = document.getElementById('botFilterSelect');
+    const tableRows = document.querySelectorAll('.bot-row');
+    const mobileCards = document.querySelectorAll('.bot-mobile-card');
+
+    function applyFilters() {
+      const q = (searchInput ? searchInput.value : '').toLowerCase().trim();
+      const filter = filterSelect ? filterSelect.value : 'all';
+
+      // Filter table rows (desktop view)
+      tableRows.forEach(row => {
+        const searchBlob = row.getAttribute('data-search') || '';
+        const type = row.getAttribute('data-type') || '';
+        const matchesQuery = !q || searchBlob.includes(q);
+        const matchesFilter = filter === 'all' || type === filter;
+        row.style.display = (matchesQuery && matchesFilter) ? '' : 'none';
+      });
+
+      // Filter mobile cards (mobile view)
+      mobileCards.forEach(card => {
+        const searchBlob = card.getAttribute('data-search') || '';
+        const type = card.getAttribute('data-type') || '';
+        const matchesQuery = !q || searchBlob.includes(q);
+        const matchesFilter = filter === 'all' || type === filter;
+        card.style.display = (matchesQuery && matchesFilter) ? 'flex' : 'none';
+      });
+    }
+
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
+    if (filterSelect) filterSelect.addEventListener('change', applyFilters);
+
+    // Transcript Drawer Modal Handling
+    const modal = document.getElementById('transcriptModal');
+    const backdrop = document.getElementById('modalBackdrop');
+    const closeBtn = document.getElementById('drawerCloseBtn');
+    const closeBtnBottom = document.getElementById('drawerCloseBtnBottom');
+    const visitorNameEl = document.getElementById('drawerVisitorName');
+    const convIdEl = document.getElementById('drawerConvId');
+    const avatarEl = document.getElementById('drawerAvatar');
+    const loadingEl = document.getElementById('drawerLoading');
+    const messagesListEl = document.getElementById('drawerMessagesList');
+    const drawerContainer = document.getElementById('drawerMessagesContainer');
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderBubbleContent(content, isUser) {
+      if (!content) return '';
+      let safe = escapeHtml(content);
+
+      // Markdown links: [Title](url)
+      safe = safe.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, label, url) {
+        const cleanUrl = url.trim();
+        const isExternal = cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://');
+        return `<a href="${cleanUrl}" target="${isExternal ? '_blank' : '_self'}" rel="noopener noreferrer">${label}</a>`;
+      });
+
+      // Bold: **text** or __text__
+      safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      safe = safe.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+      // Italic: *text* or _text_
+      safe = safe.replace(/(^|[^\w*])\*([^\s*][^*]*[^\s*]|[^\s*])\*(?=[^\w*]|$)/g, '$1<em>$2</em>');
+
+      // Inline code: `code`
+      safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+      // Process lines for bullet lists & paragraphs
+      const lines = safe.split(/\r?\n/);
+      let inUl = false;
+      let html = '';
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) {
+          if (inUl) { html += '</ul>'; inUl = false; }
+          continue;
+        }
+
+        const bulletMatch = line.match(/^([•\-\*])\s+(.+)$/);
+        if (bulletMatch) {
+          if (!inUl) { html += '<ul>'; inUl = true; }
+          html += `<li>${bulletMatch[2]}</li>`;
+        } else {
+          if (inUl) { html += '</ul>'; inUl = false; }
+          html += `<p>${line}</p>`;
+        }
+      }
+      if (inUl) html += '</ul>';
+
+      return html || `<p>${safe}</p>`;
+    }
+
+    function openModal(convId, convName) {
+      if (!modal) return;
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+
+      const displayName = convName && convName !== 'Anonymous' ? convName : 'Visitor';
+      if (visitorNameEl) visitorNameEl.textContent = displayName;
+      if (convIdEl) convIdEl.textContent = `Session: ${convId}`;
+      if (avatarEl) avatarEl.textContent = convName && convName !== 'Anonymous' ? convName.charAt(0).toUpperCase() : '👤';
+
+      if (loadingEl) loadingEl.style.display = 'flex';
+      if (messagesListEl) messagesListEl.innerHTML = '';
+
+      fetch(`/api/masteradmin/bot/conversations?id=${encodeURIComponent(convId)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (loadingEl) loadingEl.style.display = 'none';
+          if (!data.success || !Array.isArray(data.messages) || data.messages.length === 0) {
+            messagesListEl.innerHTML = `
+              <div class="empty-state-card">
+                <div class="empty-icon">💬</div>
+                <h3>No Messages Logged</h3>
+                <p>This conversation has no message records.</p>
+              </div>
+            `;
+            return;
+          }
+
+          data.messages.forEach(msg => {
+            const isUser = msg.sender === 'user';
+            const item = document.createElement('div');
+            item.className = `chat-msg-row ${isUser ? 'user-msg-row' : 'bot-msg-row'}`;
+
+            let timeStr = '';
+            if (msg.createdAt) {
+              try {
+                const d = typeof msg.createdAt === 'number' ? (msg.createdAt < 10000000000 ? new Date(msg.createdAt * 1000) : new Date(msg.createdAt)) : new Date(msg.createdAt);
+                if (!isNaN(d.getTime())) {
+                  timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
+              } catch (e) {}
+            }
+
+            const senderLabel = isUser ? `👤 ${displayName}` : `🤖 JobNed AI Guide`;
+            const bubbleHtml = renderBubbleContent(msg.content, isUser);
+
+            item.innerHTML = `
+              <div class="chat-msg-sender">${escapeHtml(senderLabel)}</div>
+              <div class="chat-msg-bubble">${bubbleHtml}</div>
+              ${timeStr ? `<div class="chat-msg-time">${escapeHtml(timeStr)}</div>` : ''}
+            `;
+            messagesListEl.appendChild(item);
+          });
+
+          // Smooth scroll to latest messages
+          if (drawerContainer) {
+            setTimeout(() => {
+              drawerContainer.scrollTop = drawerContainer.scrollHeight;
+            }, 60);
+          }
+        })
+        .catch(err => {
+          if (loadingEl) loadingEl.style.display = 'none';
+          messagesListEl.innerHTML = `<div style="color: #F43F5E; text-align: center; padding: 2.5rem; font-weight: 500;">Failed to load transcript. Please try again.</div>`;
+        });
+    }
+
+    function closeModal() {
+      if (!modal) return;
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    if (backdrop) backdrop.addEventListener('click', closeModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (closeBtnBottom) closeBtnBottom.addEventListener('click', closeModal);
+
+    // Escape key closes modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal && modal.style.display !== 'none') {
+        closeModal();
+      }
+    });
+
+    // Bind all view chat buttons (both table and mobile cards)
+    document.querySelectorAll('.btn-view-chat').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-conv-id');
+        const name = btn.getAttribute('data-conv-name');
+        if (id) openModal(id, name);
+      });
+    });
+
+    // Bind all delete conversation buttons (both table and mobile cards)
+    document.querySelectorAll('.btn-delete-conv').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-conv-id');
+        if (!id) return;
+        if (!confirm('Are you sure you want to delete this chat conversation log?')) return;
+
+        try {
+          const res = await fetch('/api/masteradmin/bot/conversations', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+          });
+          const data = await res.json();
+          if (data.success) {
+            document.querySelectorAll(`[data-id="${id}"]`).forEach(el => el.remove());
+            if (window.showToast) window.showToast('Conversation deleted', 'success');
+          } else {
+            alert(data.error || 'Failed to delete');
+          }
+        } catch (e) {
+          alert('Network error deleting conversation');
+        }
+      });
+    });
+  });
+</script>

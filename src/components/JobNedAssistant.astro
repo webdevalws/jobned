@@ -1,0 +1,1747 @@
+---
+// JobNed AI Guide - Intelligent Platform Assistant
+---
+
+<div id="jobned-assistant-root">
+  <!-- Proactive Teaser Speech Bubble -->
+  <div id="jobned-teaser-bubble" class="teaser-bubble" style="display: none;">
+    <div class="teaser-content">
+      <span class="teaser-wave">👋</span>
+      <span class="teaser-text">Need help finding a job or hiring? <strong>Ask AI!</strong></span>
+    </div>
+    <button id="jobned-teaser-close" class="teaser-close" aria-label="Dismiss teaser">✕</button>
+  </div>
+
+  <!-- Floating Launcher Button & Tooltip Wrapper -->
+  <div class="launcher-wrapper">
+    <span class="launcher-tooltip">Ask JobNed AI</span>
+    <button id="jobned-assistant-toggle" class="assistant-launcher" aria-label="Open JobNed AI Assistant">
+      <div class="launcher-pulse"></div>
+      <div class="launcher-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 8V4H8"></path>
+          <rect width="16" height="12" x="4" y="8" rx="2"></rect>
+          <path d="M2 14h2"></path>
+          <path d="M20 14h2"></path>
+          <path d="M15 13v2"></path>
+          <path d="M9 13v2"></path>
+        </svg>
+      </div>
+      <span class="launcher-online-dot"></span>
+    </button>
+  </div>
+
+  <!-- Chat Dialog Modal -->
+  <div id="jobned-assistant-dialog" class="assistant-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="assistant-heading">
+    <!-- Header -->
+    <div class="assistant-header">
+      <div class="header-info">
+        <div class="assistant-avatar">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 8V4H8"></path>
+            <rect width="16" height="12" x="4" y="8" rx="2"></rect>
+            <path d="M2 14h2"></path>
+            <path d="M20 14h2"></path>
+            <path d="M15 13v2"></path>
+            <path d="M9 13v2"></path>
+          </svg>
+          <span class="avatar-status"></span>
+        </div>
+        <div>
+          <div id="assistant-heading" class="assistant-title">JobNed AI Guide</div>
+          <div class="assistant-subtitle">Live Platform & Job Assistant</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Clear Chat -->
+        <button id="jobned-assistant-clear" class="header-btn" title="Clear Conversation" aria-label="Clear Chat">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+
+        <!-- Close -->
+        <button id="jobned-assistant-close" class="header-btn" title="Close Assistant" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick Chips Bar -->
+    <div class="quick-chips-wrapper" id="quick-chips">
+      <div class="chips-scroll">
+        <button class="chip-btn" data-query="Are there any developer or tech jobs available?">🔍 Developer Jobs</button>
+        <button class="chip-btn" data-query="Show me remote work openings">🏠 Remote Jobs</button>
+        <button class="chip-btn" data-query="How do I create an account?">🚀 Create Account</button>
+        <button class="chip-btn" data-query="How do I apply for a job with my resume?">📄 How to Apply</button>
+        <button class="chip-btn" data-query="How do I post a job as an employer?">💼 Post a Job</button>
+        <button class="chip-btn" data-query="What are the recruitment plans and pricing?">💎 Pricing Plans</button>
+        <button class="chip-btn" data-query="How does candidate screening & match scoring work?">🎯 Candidate Screening</button>
+      </div>
+    </div>
+
+    <!-- Messages Container -->
+    <div id="jobned-messages-container" class="assistant-body">
+      <div id="messages-list" class="messages-list">
+        <!-- Injected dynamically -->
+      </div>
+
+      <!-- Typing Indicator -->
+      <div id="assistant-typing" class="assistant-message bot-message" style="display: none;">
+        <div class="msg-bubble bot-bubble typing-bubble">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scroll to bottom button -->
+    <button id="scroll-bottom-btn" class="scroll-bottom-btn" style="display: none;" aria-label="Scroll to bottom">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
+
+    <!-- Input Footer -->
+    <div class="assistant-footer">
+      <form id="jobned-assistant-form" class="input-form">
+        <input
+          type="text"
+          id="jobned-assistant-input"
+          class="chat-input"
+          placeholder="Ask a question or search jobs..."
+          autocomplete="off"
+          maxlength="500"
+        />
+        <button type="submit" id="jobned-assistant-send" class="send-btn" aria-label="Send message">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </form>
+      <div class="footer-note">
+        <span class="online-indicator-tiny"></span>
+        <span>Official JobNed AI Assistant</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  (function() {
+    const root = document.getElementById('jobned-assistant-root');
+    const toggleBtn = document.getElementById('jobned-assistant-toggle');
+    const dialog = document.getElementById('jobned-assistant-dialog');
+    const closeBtn = document.getElementById('jobned-assistant-close');
+    const clearBtn = document.getElementById('jobned-assistant-clear');
+    const form = document.getElementById('jobned-assistant-form');
+    const input = document.getElementById('jobned-assistant-input');
+    const messagesList = document.getElementById('messages-list');
+    const typingIndicator = document.getElementById('assistant-typing');
+    const messagesContainer = document.getElementById('jobned-messages-container');
+    const quickChips = document.getElementById('quick-chips');
+    const scrollBottomBtn = document.getElementById('scroll-bottom-btn');
+    const teaserBubble = document.getElementById('jobned-teaser-bubble');
+    const teaserClose = document.getElementById('jobned-teaser-close');
+
+    if (!toggleBtn || !dialog) return;
+
+    let isWaiting = false;
+    const STORAGE_KEY = 'jobned_ai_chat_v9';
+
+    // Teaser speech bubble management
+    const teaserDismissed = sessionStorage.getItem('jobned_teaser_dismissed');
+    if (!teaserDismissed && teaserBubble) {
+      setTimeout(() => {
+        if (dialog.style.display === 'none') {
+          teaserBubble.style.display = 'flex';
+        }
+      }, 2500);
+    }
+
+    if (teaserClose) {
+      teaserClose.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (teaserBubble) teaserBubble.style.display = 'none';
+        sessionStorage.setItem('jobned_teaser_dismissed', 'true');
+      });
+    }
+
+    if (teaserBubble) {
+      teaserBubble.addEventListener('click', () => {
+        teaserBubble.style.display = 'none';
+        sessionStorage.setItem('jobned_teaser_dismissed', 'true');
+        toggleChat(true);
+      });
+    }
+
+    function formatTime(date) {
+      try {
+        return new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit', hour12: true }).format(date);
+      } catch (e) {
+        return '';
+      }
+    }
+
+    const CONV_ID_KEY = 'jobned_chat_conv_id';
+    const VISITOR_NAME_KEY = 'jobned_chat_visitor_name';
+
+    function getConversationId() {
+      let id = sessionStorage.getItem(CONV_ID_KEY);
+      if (!id) {
+        id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'bc_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        sessionStorage.setItem(CONV_ID_KEY, id);
+      }
+      return id;
+    }
+
+    function getVisitorName() {
+      return sessionStorage.getItem(VISITOR_NAME_KEY) || 'Anonymous';
+    }
+
+    function setVisitorName(name) {
+      if (name && name !== 'Anonymous') {
+        sessionStorage.setItem(VISITOR_NAME_KEY, name);
+      }
+    }
+
+    // Default welcome prompt
+    const defaultWelcome = {
+      role: 'assistant',
+      content: "👋 Hello! I am your **JobNed AI Guide**.\n\nI can help you with:\n• **Live Job Openings:** Search roles, salaries, or remote positions.\n• **Job Seekers:** Step-by-step guidance on creating a profile and applying.\n• **Employers:** Instructions on posting jobs, pricing plans, and candidate screening.\n\nHow can I help you today?",
+      timestamp: formatTime(new Date()),
+      jobs: []
+    };
+
+    function loadMessages() {
+      try {
+        const stored = sessionStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Filter out any stored error messages
+            const clean = parsed.filter(m => !m.content || !m.content.startsWith('⚠️'));
+            if (clean.length > 0) return clean;
+          }
+        }
+      } catch (e) {}
+      return [defaultWelcome];
+    }
+
+    function saveMessages(msgs) {
+      try {
+        const clean = msgs.filter(m => !m.content || !m.content.startsWith('⚠️'));
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(clean.slice(-15)));
+      } catch (e) {}
+    }
+
+    let chatMessages = loadMessages();
+    getConversationId(); // initialize ID early
+
+    function formatInline(str) {
+      if (!str) return '';
+      // Inline code `code`
+      let res = str.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
+      // Markdown links: [Title](url)
+      res = res.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, label, url) {
+        const cleanUrl = url.trim();
+        const isExternal = cleanUrl.startsWith('http');
+        return `<a href="${cleanUrl}" class="ai-msg-link" target="${isExternal ? '_blank' : '_self'}" rel="noopener noreferrer">${label}</a>`;
+      });
+      // Bold: **text** or __text__
+      res = res.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      res = res.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+      // Italic: *text* or _text_
+      res = res.replace(/(^|[^\w*])\*([^\s*][^*]*[^\s*]|[^\s*])\*(?=[^\w*]|$)/g, '$1<em>$2</em>');
+      res = res.replace(/(^|[^\w_])_([^\s_][^_]*[^\s_]|[^\s_])_(?=[^\w_]|$)/g, '$1<em>$2</em>');
+      return res;
+    }
+
+    // Robust Safe Markdown Parser
+    function parseMarkdown(text) {
+      if (!text) return '';
+      let safe = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      const lines = safe.split(/\r?\n/);
+      let inUl = false;
+      let inOl = false;
+      const processed = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) {
+          if (inUl) { processed.push('</ul>'); inUl = false; }
+          if (inOl) { processed.push('</ol>'); inOl = false; }
+          continue;
+        }
+
+        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+        const bulletMatch = line.match(/^([•\-\*\+])\s+(.+)$/);
+        const numberMatch = line.match(/^(\d+[\.\)])\s+(.+)$/);
+
+        if (headingMatch) {
+          if (inUl) { processed.push('</ul>'); inUl = false; }
+          if (inOl) { processed.push('</ol>'); inOl = false; }
+          processed.push(`<div class="ai-heading">${formatInline(headingMatch[2])}</div>`);
+        } else if (bulletMatch) {
+          if (inOl) { processed.push('</ol>'); inOl = false; }
+          if (!inUl) { processed.push('<ul>'); inUl = true; }
+          processed.push(`<li>${formatInline(bulletMatch[2])}</li>`);
+        } else if (numberMatch) {
+          if (inUl) { processed.push('</ul>'); inUl = false; }
+          if (!inOl) { processed.push('<ol>'); inOl = true; }
+          processed.push(`<li>${formatInline(numberMatch[2])}</li>`);
+        } else {
+          if (inUl) { processed.push('</ul>'); inUl = false; }
+          if (inOl) { processed.push('</ol>'); inOl = false; }
+          processed.push(`<p class="ai-p">${formatInline(line)}</p>`);
+        }
+      }
+
+      if (inUl) processed.push('</ul>');
+      if (inOl) processed.push('</ol>');
+
+      return processed.join('');
+    }
+
+    // Render Job Cards
+    function renderJobCards(jobs) {
+      if (!Array.isArray(jobs) || jobs.length === 0) return '';
+      return `
+        <div class="ai-job-cards-container">
+          <div class="ai-job-cards-header">📌 Matching Positions</div>
+          ${jobs.map(job => `
+            <div class="ai-job-card">
+              <div class="job-card-top">
+                <a href="/jobs/${job.id}" class="job-card-title">${escapeHtml(job.jobTitle)}</a>
+                <span class="job-card-type">${escapeHtml(job.employmentType || 'Full-time')}</span>
+              </div>
+              <div class="job-card-company">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                <span>${escapeHtml(job.companyName || 'Verified Employer')}</span>
+              </div>
+              <div class="job-card-meta">
+                <span class="meta-tag ${job.locationRemote ? 'tag-remote' : ''}">
+                  ${job.locationRemote ? '🏠 Remote' : `📍 ${escapeHtml(job.locationCity || 'Onsite')}`}
+                </span>
+                ${job.salaryMin ? `
+                  <span class="meta-tag tag-salary">
+                    💵 ${job.salaryMin.toLocaleString()} - ${job.salaryMax ? job.salaryMax.toLocaleString() : ''} ${escapeHtml(job.salaryCurrency || 'USD')}
+                  </span>
+                ` : ''}
+              </div>
+              <a href="/jobs/${job.id}" class="job-card-action">View Opening →</a>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderMessages() {
+      if (!messagesList) return;
+      messagesList.innerHTML = '';
+
+      chatMessages.forEach((msg, idx) => {
+        const isUser = msg.role === 'user';
+        const msgEl = document.createElement('div');
+        msgEl.className = `assistant-message ${isUser ? 'user-message' : 'bot-message'}`;
+
+        if (isUser) {
+          msgEl.innerHTML = `
+            <div class="msg-bubble user-bubble">
+              <div class="msg-content">${parseMarkdown(msg.content)}</div>
+              ${msg.timestamp ? `<div class="msg-time user-time">${escapeHtml(msg.timestamp)}</div>` : ''}
+            </div>
+          `;
+        } else {
+          msgEl.innerHTML = `
+            <div class="msg-bubble bot-bubble">
+              <button class="msg-copy-btn" title="Copy text" data-idx="${idx}" aria-label="Copy reply">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+              <div class="msg-content">${parseMarkdown(msg.content)}</div>
+              ${msg.jobs && msg.jobs.length > 0 ? renderJobCards(msg.jobs) : ''}
+              ${msg.timestamp ? `<div class="msg-time bot-time">${escapeHtml(msg.timestamp)}</div>` : ''}
+            </div>
+          `;
+        }
+
+        messagesList.appendChild(msgEl);
+      });
+
+      // Bind copy buttons
+      const copyBtns = messagesList.querySelectorAll('.msg-copy-btn');
+      copyBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(btn.getAttribute('data-idx') || '-1', 10);
+          if (idx >= 0 && chatMessages[idx]) {
+            const rawContent = chatMessages[idx].content || '';
+            navigator.clipboard.writeText(rawContent).then(() => {
+              btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+              setTimeout(() => {
+                btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+              }, 1800);
+            });
+          }
+        });
+      });
+
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      if (messagesContainer) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    }
+
+    // Scroll listener for floating scroll-to-bottom button
+    if (messagesContainer && scrollBottomBtn) {
+      messagesContainer.addEventListener('scroll', () => {
+        const threshold = 120;
+        const diff = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight;
+        scrollBottomBtn.style.display = diff > threshold ? 'flex' : 'none';
+      });
+
+      scrollBottomBtn.addEventListener('click', () => {
+        scrollToBottom();
+      });
+    }
+
+    function toggleChat(open) {
+      const isOpen = open !== undefined ? open : dialog.style.display === 'none';
+      dialog.style.display = isOpen ? 'flex' : 'none';
+      toggleBtn.classList.toggle('active', isOpen);
+      if (teaserBubble) teaserBubble.style.display = 'none';
+
+      if (isOpen) {
+        renderMessages();
+        setTimeout(() => input && input.focus(), 150);
+      }
+    }
+
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleChat();
+    });
+
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleChat(false);
+    });
+
+    // Close when clicking or tapping outside the chat dialog
+    document.addEventListener('pointerdown', (e) => {
+      if (dialog.style.display !== 'none') {
+        const isInsideDialog = dialog.contains(e.target);
+        const isToggleBtn = toggleBtn.contains(e.target);
+        if (!isInsideDialog && !isToggleBtn) {
+          toggleChat(false);
+        }
+      }
+    });
+
+    // Close on Escape key
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && dialog.style.display !== 'none') {
+        toggleChat(false);
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      sessionStorage.removeItem(CONV_ID_KEY);
+      sessionStorage.removeItem(VISITOR_NAME_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
+      getConversationId();
+      chatMessages = [{
+        ...defaultWelcome,
+        timestamp: formatTime(new Date())
+      }];
+      saveMessages(chatMessages);
+      renderMessages();
+    });
+
+    // Quick chips click
+    if (quickChips) {
+      quickChips.addEventListener('click', (e) => {
+        const target = e.target.closest('.chip-btn');
+        if (target && !isWaiting) {
+          const query = target.getAttribute('data-query');
+          if (query) {
+            handleSend(query);
+          }
+        }
+      });
+    }
+
+    async function handleSend(customText) {
+      const text = (customText || (input ? input.value : '')).trim();
+      if (!text || isWaiting) return;
+
+      if (input) input.value = '';
+      isWaiting = true;
+
+      // Append user message
+      const now = new Date();
+      chatMessages.push({
+        role: 'user',
+        content: text,
+        timestamp: formatTime(now)
+      });
+      saveMessages(chatMessages);
+      renderMessages();
+
+      if (typingIndicator) {
+        typingIndicator.classList.add('active');
+        typingIndicator.style.display = 'flex';
+      }
+      scrollToBottom();
+
+      try {
+        const cleanHistory = chatMessages
+          .filter(m => !m.content || !m.content.startsWith('⚠️'))
+          .slice(-8)
+          .map(m => ({ role: m.role, content: m.content }));
+
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: cleanHistory,
+            currentPath: window.location.pathname || '/',
+            conversationId: getConversationId(),
+            visitorName: getVisitorName()
+          })
+        });
+
+        const data = await res.json();
+        if (data.visitorName && data.visitorName !== 'Anonymous') {
+          setVisitorName(data.visitorName);
+        }
+        if (data.conversationId) {
+          sessionStorage.setItem(CONV_ID_KEY, data.conversationId);
+        }
+
+        const reply = data.reply || (data.error ? `⚠️ ${data.error}` : 'Unable to generate response.');
+        const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+
+        chatMessages.push({
+          role: 'assistant',
+          content: reply,
+          timestamp: formatTime(new Date()),
+          jobs: jobs
+        });
+        saveMessages(chatMessages);
+      } catch (err) {
+        chatMessages.push({
+          role: 'assistant',
+          content: '⚠️ Network connection issue. Could not reach JobNed AI. Please check your network and try again.',
+          timestamp: formatTime(new Date()),
+          jobs: []
+        });
+      } finally {
+        isWaiting = false;
+        if (typingIndicator) {
+          typingIndicator.classList.remove('active');
+          typingIndicator.style.display = 'none';
+        }
+        renderMessages();
+      }
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleSend();
+    });
+
+    // Render initial state
+    renderMessages();
+  })();
+</script>
+
+<style is:global>
+  #jobned-assistant-root {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 99999;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  @media (max-width: 768px) {
+    #jobned-assistant-root {
+      bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+      right: 16px !important;
+    }
+    #jobned-assistant-root .teaser-bubble {
+      bottom: 68px !important;
+      right: 0 !important;
+      max-width: calc(100vw - 32px) !important;
+    }
+  }
+
+  /* Teaser Speech Bubble (Dark Mode Default) */
+  #jobned-assistant-root .teaser-bubble {
+    position: absolute;
+    bottom: 74px;
+    right: 0;
+    max-width: calc(100vw - 36px) !important;
+    width: max-content !important;
+    min-width: 250px;
+    box-sizing: border-box !important;
+    background: #1e1b4b;
+    border: 1px solid rgba(167, 139, 250, 0.45);
+    border-radius: 14px;
+    padding: 9px 12px 9px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(99, 102, 241, 0.25);
+    cursor: pointer;
+    white-space: nowrap !important;
+    animation: teaserFloat 3s ease-in-out infinite;
+    z-index: 10;
+  }
+
+  #jobned-assistant-root .teaser-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    right: 24px;
+    width: 12px;
+    height: 12px;
+    background: #1e1b4b;
+    border-right: 1px solid rgba(167, 139, 250, 0.45);
+    border-bottom: 1px solid rgba(167, 139, 250, 0.45);
+    transform: rotate(45deg);
+  }
+
+  @keyframes teaserFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  #jobned-assistant-root .teaser-content {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: #e0e7ff !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    flex: 1;
+  }
+
+  #jobned-assistant-root .teaser-wave {
+    font-size: 1.05rem;
+    animation: waveHand 2s infinite;
+    transform-origin: 70% 70%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  @keyframes waveHand {
+    0% { transform: rotate(0deg); }
+    10% { transform: rotate(14deg); }
+    20% { transform: rotate(-8deg); }
+    30% { transform: rotate(14deg); }
+    40% { transform: rotate(-4deg); }
+    50% { transform: rotate(10deg); }
+    60% { transform: rotate(0deg); }
+    100% { transform: rotate(0deg); }
+  }
+
+  #jobned-assistant-root .teaser-text {
+    white-space: nowrap !important;
+    max-width: none !important;
+  }
+
+  #jobned-assistant-root .teaser-text strong {
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+
+  #jobned-assistant-root .teaser-close {
+    background: transparent;
+    border: none;
+    color: #a5b4fc !important;
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #jobned-assistant-root .teaser-close:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  /* Launcher Wrapper & Tooltip */
+  #jobned-assistant-root .launcher-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  #jobned-assistant-root .launcher-tooltip {
+    position: absolute;
+    right: calc(100% + 14px);
+    top: 50%;
+    transform: translateY(-50%) translateX(8px);
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(8px);
+    color: #ffffff !important;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap !important;
+    max-width: none !important;
+    width: max-content !important;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.22s ease-in-out;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 20;
+  }
+
+  #jobned-assistant-root .launcher-wrapper:hover .launcher-tooltip {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  /* Floating Launcher Button */
+  #jobned-assistant-root .assistant-launcher {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+    color: #ffffff !important;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.5), 0 8px 10px -6px rgba(99, 102, 241, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  #jobned-assistant-root .assistant-launcher:hover {
+    transform: scale(1.08) translateY(-2px);
+    box-shadow: 0 15px 30px -5px rgba(124, 58, 237, 0.6);
+  }
+
+  #jobned-assistant-root .assistant-launcher:active {
+    transform: scale(0.95);
+  }
+
+  #jobned-assistant-root .assistant-launcher.active {
+    background: linear-gradient(135deg, #3730a3 0%, #581c87 100%);
+  }
+
+  #jobned-assistant-root .launcher-pulse {
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    opacity: 0.45;
+    animation: launcherPulse 2.5s infinite;
+    z-index: -1;
+  }
+
+  @keyframes launcherPulse {
+    0% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.22); opacity: 0; }
+    100% { transform: scale(1); opacity: 0; }
+  }
+
+  #jobned-assistant-root .launcher-online-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 14px;
+    height: 14px;
+    background-color: #10b981;
+    border: 2.5px solid #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+  }
+
+  /* Modal Dialog Window */
+  #jobned-assistant-root .assistant-modal {
+    position: absolute;
+    bottom: 74px;
+    right: 0;
+    width: 395px;
+    max-width: calc(100vw - 32px);
+    height: 600px;
+    max-height: calc(100vh - 100px);
+    background: #090d16;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes modalSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Header */
+  #jobned-assistant-root .assistant-header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #2e1065 100%);
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  #jobned-assistant-root .header-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #jobned-assistant-root .assistant-avatar {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #4f46e5, #9333ea);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    flex-shrink: 0;
+  }
+
+  #jobned-assistant-root .avatar-status {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 9px;
+    height: 9px;
+    background: #10b981;
+    border-radius: 50%;
+    border: 2px solid #1e1b4b;
+  }
+
+  #jobned-assistant-root .assistant-title {
+    font-size: 0.94rem;
+    font-weight: 700;
+    color: #ffffff !important;
+    display: flex;
+    align-items: center;
+  }
+
+  #jobned-assistant-root .assistant-subtitle {
+    font-size: 0.72rem;
+    color: #cbd5e1 !important;
+  }
+
+  #jobned-assistant-root .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #jobned-assistant-root .header-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: #cbd5e1 !important;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  #jobned-assistant-root .header-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff !important;
+  }
+
+  /* Quick Suggestion Chips */
+  #jobned-assistant-root .quick-chips-wrapper {
+    background: #0f172a;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 8px 12px;
+    flex-shrink: 0;
+  }
+
+  #jobned-assistant-root .chips-scroll {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #jobned-assistant-root .chips-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  #jobned-assistant-root .chip-btn {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #c7d2fe !important;
+    font-size: 0.74rem;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  #jobned-assistant-root .chip-btn:hover {
+    background: rgba(99, 102, 241, 0.32);
+    color: #ffffff !important;
+    border-color: #818cf8;
+    transform: translateY(-1px);
+  }
+
+  /* Assistant Body & Scroll */
+  #jobned-assistant-root .assistant-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: #0b1120;
+    scroll-behavior: smooth;
+    position: relative;
+  }
+
+  #jobned-assistant-root .assistant-body::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  #jobned-assistant-root .assistant-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #jobned-assistant-root .assistant-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+  }
+
+  #jobned-assistant-root .assistant-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  /* Messages Layout & Styling */
+  #jobned-assistant-root .messages-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    width: 100% !important;
+  }
+
+  #jobned-assistant-root .assistant-message {
+    display: flex;
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  #jobned-assistant-root .user-message {
+    justify-content: flex-end !important;
+  }
+
+  #jobned-assistant-root .bot-message {
+    justify-content: flex-start !important;
+  }
+
+  /* User Bubble (Dark Mode Default) */
+  #jobned-assistant-root .user-bubble {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    color: #ffffff !important;
+    padding: 12px 16px !important;
+    border-radius: 18px 18px 4px 18px !important;
+    max-width: 82% !important;
+    min-width: 48px !important;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    box-sizing: border-box !important;
+  }
+
+  #jobned-assistant-root .user-bubble .msg-content {
+    color: #ffffff !important;
+    font-size: 0.88rem !important;
+    line-height: 1.5 !important;
+    word-break: break-word !important;
+  }
+
+  #jobned-assistant-root .user-bubble strong,
+  #jobned-assistant-root .user-bubble em,
+  #jobned-assistant-root .user-bubble li {
+    color: #ffffff !important;
+  }
+
+  #jobned-assistant-root .user-time {
+    font-size: 0.65rem !important;
+    color: rgba(255, 255, 255, 0.75) !important;
+    text-align: right !important;
+    margin-top: 2px !important;
+  }
+
+  /* Bot Bubble (Dark Mode Default) */
+  #jobned-assistant-root .bot-bubble {
+    background: #1e293b !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #f1f5f9 !important;
+    padding: 14px 16px !important;
+    border-radius: 18px 18px 18px 4px !important;
+    max-width: 88% !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+  }
+
+  #jobned-assistant-root .bot-bubble .msg-content {
+    color: #f1f5f9 !important;
+    font-size: 0.88rem !important;
+    line-height: 1.55 !important;
+    word-break: break-word !important;
+    padding-right: 20px !important;
+  }
+
+  #jobned-assistant-root .bot-bubble .msg-content p.ai-p,
+  #jobned-assistant-root .user-bubble .msg-content p.ai-p {
+    margin: 0 0 8px 0 !important;
+    line-height: 1.55 !important;
+  }
+
+  #jobned-assistant-root .bot-bubble .msg-content p.ai-p:last-child,
+  #jobned-assistant-root .user-bubble .msg-content p.ai-p:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  #jobned-assistant-root .bot-bubble strong {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+  }
+
+  #jobned-assistant-root .bot-bubble em {
+    color: #cbd5e1 !important;
+  }
+
+  #jobned-assistant-root .bot-bubble ul,
+  #jobned-assistant-root .bot-bubble ol {
+    margin: 6px 0 8px 0 !important;
+    padding-left: 20px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  #jobned-assistant-root .bot-bubble li {
+    color: #f1f5f9 !important;
+    margin: 0 !important;
+    line-height: 1.5 !important;
+  }
+
+  #jobned-assistant-root .bot-time {
+    font-size: 0.65rem !important;
+    color: #94a3b8 !important;
+    text-align: left !important;
+    margin-top: 2px !important;
+  }
+
+  /* Copy Button inside Bot Bubble */
+  #jobned-assistant-root .msg-copy-btn {
+    position: absolute !important;
+    top: 8px !important;
+    right: 8px !important;
+    background: transparent !important;
+    border: none !important;
+    color: #94a3b8 !important;
+    width: 22px !important;
+    height: 22px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    opacity: 0.4 !important;
+    transition: all 0.2s !important;
+  }
+
+  #jobned-assistant-root .bot-bubble:hover .msg-copy-btn {
+    opacity: 1 !important;
+  }
+
+  #jobned-assistant-root .msg-copy-btn:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  /* Interactive Job Cards in Chat */
+  #jobned-assistant-root .ai-job-cards-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    margin-top: 6px !important;
+    width: 100% !important;
+  }
+
+  #jobned-assistant-root .ai-job-cards-header {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    color: #94a3b8 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+  }
+
+  #jobned-assistant-root .ai-job-card {
+    background: #0f172a !important;
+    border: 1px solid rgba(99, 102, 241, 0.25) !important;
+    border-radius: 12px !important;
+    padding: 10px 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    transition: all 0.2s !important;
+  }
+
+  #jobned-assistant-root .ai-job-card:hover {
+    border-color: #818cf8 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  #jobned-assistant-root .job-card-top {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+
+  #jobned-assistant-root .job-card-title {
+    font-size: 0.85rem !important;
+    font-weight: 700 !important;
+    color: #a5b4fc !important;
+    text-decoration: none !important;
+    line-height: 1.3 !important;
+  }
+
+  #jobned-assistant-root .job-card-title:hover {
+    color: #c7d2fe !important;
+    text-decoration: underline !important;
+  }
+
+  #jobned-assistant-root .job-card-type {
+    font-size: 0.65rem !important;
+    font-weight: 600 !important;
+    color: #e0e7ff !important;
+    background: rgba(99, 102, 241, 0.2) !important;
+    padding: 2px 6px !important;
+    border-radius: 6px !important;
+    white-space: nowrap !important;
+  }
+
+  #jobned-assistant-root .job-card-company {
+    font-size: 0.74rem !important;
+    color: #94a3b8 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+  }
+
+  #jobned-assistant-root .job-card-meta {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+  }
+
+  #jobned-assistant-root .meta-tag {
+    font-size: 0.68rem !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: #cbd5e1 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+  }
+
+  #jobned-assistant-root .tag-remote {
+    background: rgba(16, 185, 129, 0.15) !important;
+    color: #6ee7b7 !important;
+    border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  }
+
+  #jobned-assistant-root .tag-salary {
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: #fcd34d !important;
+    border: 1px solid rgba(245, 158, 11, 0.25) !important;
+  }
+
+  #jobned-assistant-root .job-card-action {
+    align-self: flex-start !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    color: #818cf8 !important;
+    text-decoration: none !important;
+    margin-top: 2px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+  }
+
+  #jobned-assistant-root .job-card-action:hover {
+    color: #c7d2fe !important;
+    text-decoration: underline !important;
+  }
+
+  #jobned-assistant-root .ai-msg-link {
+    color: #60a5fa !important;
+    text-decoration: underline !important;
+    font-weight: 600 !important;
+    word-break: break-all !important;
+  }
+
+  #jobned-assistant-root .ai-msg-link:hover {
+    color: #93c5fd !important;
+  }
+
+  #jobned-assistant-root .ai-inline-code {
+    background: rgba(0, 0, 0, 0.3) !important;
+    color: #f472b6 !important;
+    padding: 1px 5px !important;
+    border-radius: 4px !important;
+    font-family: monospace !important;
+    font-size: 0.8rem !important;
+  }
+
+  /* Typing Indicator (Hidden strictly unless .active) */
+  #jobned-assistant-root #assistant-typing {
+    display: none !important;
+  }
+
+  #jobned-assistant-root #assistant-typing.active {
+    display: flex !important;
+    justify-content: flex-start !important;
+  }
+
+  #jobned-assistant-root .typing-bubble {
+    padding: 10px 16px !important;
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    width: auto !important;
+    max-width: max-content !important;
+    min-width: 50px !important;
+    border-radius: 16px 16px 16px 4px !important;
+  }
+
+  #jobned-assistant-root .typing-bubble .dot {
+    width: 7px !important;
+    height: 7px !important;
+    background: #818cf8 !important;
+    border-radius: 50% !important;
+    display: inline-block !important;
+    animation: dotPulse 1.4s infinite ease-in-out !important;
+  }
+
+  #jobned-assistant-root .typing-bubble .dot:nth-child(2) { animation-delay: 0.2s !important; }
+  #jobned-assistant-root .typing-bubble .dot:nth-child(3) { animation-delay: 0.4s !important; }
+
+  @keyframes dotPulse {
+    0%, 80%, 100% { transform: scale(0.65); opacity: 0.35; }
+    40% { transform: scale(1.15); opacity: 1; }
+  }
+
+  /* Floating Scroll to Bottom */
+  #jobned-assistant-root .scroll-bottom-btn {
+    position: absolute;
+    bottom: 70px;
+    right: 18px;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff !important;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s;
+    z-index: 5;
+  }
+
+  #jobned-assistant-root .scroll-bottom-btn:hover {
+    background: #334155;
+    transform: translateY(-2px);
+  }
+
+  /* Footer & Input */
+  #jobned-assistant-root .assistant-footer {
+    background: #090d16;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 10px 14px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  #jobned-assistant-root .input-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 4px 6px 4px 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  #jobned-assistant-root .input-form:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+  }
+
+  #jobned-assistant-root .chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f8fafc !important;
+    font-size: 0.88rem;
+    padding: 6px 0;
+  }
+
+  #jobned-assistant-root .chat-input::placeholder {
+    color: #64748b !important;
+  }
+
+  #jobned-assistant-root .send-btn {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #ffffff !important;
+    border: none;
+    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  #jobned-assistant-root .send-btn:hover {
+    opacity: 0.92;
+    transform: scale(1.04);
+  }
+
+  #jobned-assistant-root .send-btn:active {
+    transform: scale(0.95);
+  }
+
+  #jobned-assistant-root .footer-note {
+    font-size: 0.7rem;
+    color: #64748b !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  #jobned-assistant-root .online-indicator-tiny {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    display: inline-block;
+  }
+
+  /* ========================================================
+     ☀️ LIGHT MODE THEME OVERRIDES ([data-theme="light"])
+     ======================================================== */
+  [data-theme="light"] #jobned-assistant-root .launcher-tooltip {
+    background: #1e1b4b !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid rgba(167, 139, 250, 0.3) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .teaser-bubble {
+    background: #ffffff !important;
+    border: 1px solid #c4b5fd !important;
+    box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.2), 0 4px 10px rgba(0, 0, 0, 0.05) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .teaser-bubble::after {
+    background: #ffffff !important;
+    border-right: 1px solid #c4b5fd !important;
+    border-bottom: 1px solid #c4b5fd !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .teaser-content {
+    color: #1e1b4b !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .teaser-text strong {
+    color: #6366f1 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .teaser-close {
+    color: #64748b !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .teaser-close:hover {
+    color: #1e1b4b !important;
+    background: #f1f5f9 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .assistant-modal {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .assistant-header {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .assistant-title {
+    color: #ffffff !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .assistant-subtitle {
+    color: #e0e7ff !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .header-btn {
+    background: rgba(255, 255, 255, 0.18) !important;
+    color: #ffffff !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .header-btn:hover {
+    background: rgba(255, 255, 255, 0.32) !important;
+    color: #ffffff !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .quick-chips-wrapper {
+    background: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .chip-btn {
+    background: #ede9fe !important;
+    border: 1px solid #c4b5fd !important;
+    color: #5b21b6 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .chip-btn:hover {
+    background: #ddd6fe !important;
+    color: #4338ca !important;
+    border-color: #a78bfa !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .assistant-body {
+    background: #f8fafc !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .assistant-body::-webkit-scrollbar-thumb {
+    background: #cbd5e1 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .assistant-body::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8 !important;
+  }
+
+  /* User Bubble (Light Theme) - Distinct Card Pill */
+  [data-theme="light"] #jobned-assistant-root .user-bubble {
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.28) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .user-bubble .msg-content {
+    color: #ffffff !important;
+  }
+
+  /* Bot Bubble (Light Theme) - Crisp Elevated Card */
+  [data-theme="light"] #jobned-assistant-root .bot-bubble {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #0f172a !important;
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .bot-bubble .msg-content {
+    color: #0f172a !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .bot-bubble strong {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .bot-bubble em {
+    color: #475569 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .bot-bubble li {
+    color: #1e293b !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .bot-time {
+    color: #64748b !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .msg-copy-btn {
+    color: #94a3b8 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .msg-copy-btn:hover {
+    color: #0f172a !important;
+    background: #f1f5f9 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .ai-job-cards-header {
+    color: #64748b !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .ai-job-card {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .ai-job-card:hover {
+    border-color: #a78bfa !important;
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.12) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .job-card-title {
+    color: #4338ca !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .job-card-title:hover {
+    color: #3730a3 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .job-card-company {
+    color: #64748b !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .job-card-type {
+    background: #ede9fe !important;
+    color: #5b21b6 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .meta-tag {
+    background: #e2e8f0 !important;
+    color: #475569 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .tag-remote {
+    background: #dcfce7 !important;
+    color: #15803d !important;
+    border: 1px solid #86efac !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .tag-salary {
+    background: #fef3c7 !important;
+    color: #b45309 !important;
+    border: 1px solid #fde68a !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .job-card-action {
+    color: #6366f1 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .job-card-action:hover {
+    color: #4338ca !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .ai-msg-link {
+    color: #2563eb !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .ai-msg-link:hover {
+    color: #1d4ed8 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .ai-inline-code {
+    background: #f1f5f9 !important;
+    color: #be185d !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .typing-bubble {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .dot {
+    background: #3b82f6 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .scroll-bottom-btn {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .scroll-bottom-btn:hover {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .assistant-footer {
+    background: #ffffff !important;
+    border-top: 1px solid #e2e8f0 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .input-form {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .input-form:focus-within {
+    border-color: #3b82f6 !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .chat-input {
+    color: #0f172a !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .chat-input::placeholder {
+    color: #94a3b8 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .footer-note {
+    color: #64748b !important;
+  }
+
+  #jobned-assistant-root .bot-bubble .ai-heading {
+    font-weight: 700 !important;
+    font-size: 0.88rem !important;
+    color: #ffffff !important;
+    margin: 8px 0 4px 0 !important;
+  }
+
+  [data-theme="light"] #jobned-assistant-root .bot-bubble .ai-heading {
+    color: #0f172a !important;
+  }
+
+  /* Mobile responsiveness & Bottom Nav avoidance */
+  @media (max-width: 768px) {
+    #jobned-assistant-root {
+      bottom: 20px;
+      right: 18px;
+    }
+
+    #jobned-assistant-root .teaser-bubble {
+      bottom: 64px;
+      right: 0;
+      max-width: calc(100vw - 36px) !important;
+    }
+
+    #jobned-assistant-root .launcher-tooltip {
+      display: none;
+    }
+
+    #jobned-assistant-root .assistant-modal {
+      position: absolute;
+      bottom: 66px;
+      right: 0;
+      width: calc(100vw - 32px);
+      max-width: 375px;
+      height: 520px;
+      max-height: calc(100dvh - 96px);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      z-index: 100000;
+    }
+
+    [data-theme="light"] #jobned-assistant-root .assistant-modal {
+      border: 1px solid #e2e8f0 !important;
+      box-shadow: 0 15px 35px -5px rgba(15, 23, 42, 0.18) !important;
+    }
+
+    #jobned-assistant-root .assistant-launcher {
+      width: 52px;
+      height: 52px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    #jobned-assistant-root {
+      bottom: 16px;
+      right: 14px;
+    }
+
+    #jobned-assistant-root .assistant-modal {
+      bottom: 62px;
+      right: 0;
+      width: calc(100vw - 28px);
+      max-width: 350px;
+      height: 480px;
+      max-height: calc(100dvh - 84px);
+      border-radius: 16px;
+    }
+
+    #jobned-assistant-root .chat-input {
+      font-size: 0.84rem;
+    }
+  }
+</style>
+

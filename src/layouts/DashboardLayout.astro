@@ -4,6 +4,7 @@ import CookieBanner from "../components/CookieBanner.astro";
 import Sidebar from "../components/Sidebar.astro";
 import MobileBottomNav from "../components/MobileBottomNav.astro";
 import SEO from "../components/SEO.astro";
+import JobNedAssistant from "../components/JobNedAssistant.astro";
 import { getDb } from "../lib/db";
 import { applications, users, notifications } from "../db/schema";
 import { eq, and } from "drizzle-orm";
@@ -100,8 +101,11 @@ const logoHomePath =
     </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="generator" content={Astro.generator} />
     <SEO title={title} description={description} image={image} noindex={noindex} jobData={jobData} schemaType={schemaType} />
@@ -358,6 +362,7 @@ const logoHomePath =
     </div>
     <MobileBottomNav userType={userType} activePath={activePath} />
     <CookieBanner />
+    <JobNedAssistant />
   </body>
 </html>
 

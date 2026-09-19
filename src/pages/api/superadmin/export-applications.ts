@@ -102,6 +102,7 @@ export const GET: APIRoute = async (context) => {
       resumeUrl: applications.resumeUrl,
       coverLetter: applications.coverLetter,
       notes: applications.notes,
+      remarks: applications.remarks,
     })
     .from(applications)
     .innerJoin(users, eq(applications.applicantId, users.id))
@@ -110,7 +111,7 @@ export const GET: APIRoute = async (context) => {
     .orderBy(orderByClause);
 
   // Generate CSV Content
-  const csvHeaders = ["Application ID", "Source", "Applicant Name", "Email", "Phone", "Job Title", "Status", "Applied Date", "Resume Link", "Notes"];
+  const csvHeaders = ["Application ID", "Source", "Applicant Name", "Email", "Phone", "Job Title", "Status", "Applied Date", "Resume Link", "Notes", "Admin Remarks"];
   
   const csvRows = apps.map(app => {
     const isAlightway = app.userType === "external_applicant" || (app.jobId && app.jobId.startsWith("external_")) || (app.notes && app.notes.includes("Alightway"));
@@ -123,8 +124,9 @@ export const GET: APIRoute = async (context) => {
     const date = app.appliedAt ? `"${new Date(app.appliedAt).toISOString()}"` : '""';
     const resume = `"${app.resumeUrl || ''}"`;
     const notes = `"${(app.notes || '').replace(/"/g, '""')}"`;
+    const remarks = `"${(app.remarks || '').replace(/"/g, '""')}"`;
 
-    return [app.id, source, name, email, phone, title, status, date, resume, notes].join(",");
+    return [app.id, source, name, email, phone, title, status, date, resume, notes, remarks].join(",");
   });
 
   const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");

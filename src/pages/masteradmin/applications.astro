@@ -107,6 +107,7 @@ if (searchParam) {
       like(users.email, `%${searchParam}%`),
       like(users.phone, `%${searchParam}%`),
       like(applications.notes, `%${searchParam}%`),
+      like(applications.remarks, `%${searchParam}%`),
       like(applications.coverLetter, `%${searchParam}%`),
       sql`COALESCE(${jobPostings.jobTitle}, ${applications.jobPostingId}) LIKE ${`%${searchParam}%`}`
     )
@@ -133,6 +134,7 @@ const allApplications = await db
     resumeUrl: applications.resumeUrl,
     coverLetter: applications.coverLetter,
     notes: applications.notes,
+    remarks: applications.remarks,
     customAnswers: applications.customAnswers,
   })
   .from(applications)
@@ -367,13 +369,14 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
               <th>Status</th>
               <th>Applied At</th>
               <th>Resume</th>
+              <th>Remark</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             <!-- Live filter 0 matches row -->
             <tr id="noLiveMatchRow" style="display: none;">
-              <td colspan="7" class="empty-cell">
+              <td colspan="8" class="empty-cell">
                 <div class="empty-state">
                   <div class="empty-icon">🔍</div>
                   <h3>No Matching Candidates Found</h3>
@@ -387,7 +390,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
 
             {allApplications.length === 0 ? (
               <tr>
-                <td colspan="7" class="empty-cell">
+                <td colspan="8" class="empty-cell">
                   <div class="empty-state">
                     <div class="empty-icon">{searchParam ? '🔍' : sourceParam === 'alightway' ? '🌐' : '📁'}</div>
                     <h3>{searchParam ? 'No Candidates Found' : 'No Applications Found'}</h3>
@@ -406,7 +409,7 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                 const notesStr = (app.notes || "").toLowerCase();
                 const isSanskar = notesStr.includes("sanskar");
                 const isAlightway = !isSanskar && (app.userType === "external_applicant" || (app.jobId && app.jobId.startsWith("external_")) || notesStr.includes("alightway") || notesStr.includes("external"));
-                const rowSearchText = `${app.applicantFirstName || ''} ${app.applicantLastName || ''} ${app.applicantEmail || ''} ${app.applicantPhone || ''} ${app.jobTitle || ''} ${app.notes || ''}`.toLowerCase();
+                const rowSearchText = `${app.applicantFirstName || ''} ${app.applicantLastName || ''} ${app.applicantEmail || ''} ${app.applicantPhone || ''} ${app.jobTitle || ''} ${app.notes || ''} ${app.remarks || ''}`.toLowerCase();
 
                 return (
                   <tr class="app-row" data-search-text={rowSearchText}>
@@ -451,8 +454,36 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                         <span class="no-resume">No resume</span>
                       )}
                     </td>
+                    <td class="remark-col-cell">
+                      <button
+                        type="button"
+                        class={`btn-remark-cell ${app.remarks ? 'has-remark' : 'no-remark'}`}
+                        id={`btn-remark-${app.id}`}
+                        data-app-id={app.id}
+                        data-applicant-name={`${app.applicantFirstName || ''} ${app.applicantLastName || ''}`.trim() || 'Candidate'}
+                        data-job-title={app.jobTitle || 'Position'}
+                        data-source={isSanskar ? 'Sanskar Website' : isAlightway ? 'Alightway Website' : 'JobNed Platform'}
+                        data-remarks={app.remarks || ''}
+                        onclick={`openRemarkModal('${app.id}')`}
+                        title={app.remarks ? `Remark: "${app.remarks}" (Click to view/edit)` : "Add Remark for this applicant"}
+                      >
+                        <span class="remark-icon-badge">{app.remarks ? '💬' : '✏️'}</span>
+                        <span class="remark-text-preview" id={`remark-preview-text-${app.id}`}>
+                          {app.remarks ? app.remarks : 'Add Remark'}
+                        </span>
+                        {app.remarks && <span class="remark-status-dot" title="Remark saved"></span>}
+                      </button>
+                    </td>
                     <td>
                       <div class="actions-cell">
+                        <button
+                          type="button"
+                          class="btn-action-icon remark-action"
+                          title="Add / Edit Remark"
+                          onclick={`openRemarkModal('${app.id}')`}
+                        >
+                          💬
+                        </button>
                         <button
                           type="button"
                           class="btn-action-icon view-action"
@@ -539,6 +570,27 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
                                 </div>
                               );
                             })()}
+
+                            <!-- Admin Remark in Details Dialog -->
+                            <div class="dialog-section mt-3">
+                              <div class="dialog-section-header">
+                                <span class="lbl">Admin Remark</span>
+                                <button
+                                  type="button"
+                                  class="btn-dialog-edit-remark"
+                                  onclick={`document.getElementById('dialog-${app.id}').close(); openRemarkModal('${app.id}')`}
+                                >
+                                  ✏️ Edit Remark
+                                </button>
+                              </div>
+                              <div class="dialog-remark-box" id={`dialog-remark-box-${app.id}`}>
+                                {app.remarks ? (
+                                  <p class="remark-dialog-text">{app.remarks}</p>
+                                ) : (
+                                  <p class="remark-dialog-empty">No remarks added yet for this applicant.</p>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
                           <div class="dialog-footer">
@@ -561,6 +613,94 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
         </table>
       </div>
     </div>
+
+    <!-- Reusable Remark Modal for Master Admin -->
+    <dialog id="applicantRemarkModal" class="app-dialog remark-modal">
+      <div class="dialog-content remark-dialog-content">
+        <div class="dialog-header">
+          <div class="remark-modal-title-wrap">
+            <div class="remark-header-icon">💬</div>
+            <div>
+              <h3>Applicant Remark</h3>
+              <p class="text-muted remark-subtitle">Save internal evaluation notes, screening observations, or next steps.</p>
+            </div>
+          </div>
+          <button type="button" class="dialog-close" onclick="closeRemarkModal()">✕</button>
+        </div>
+
+        <div class="dialog-body remark-dialog-body">
+          <!-- Applicant Summary Card -->
+          <div class="remark-applicant-card">
+            <div class="applicant-mini-avatar" id="modalApplicantAvatar">U</div>
+            <div class="applicant-mini-meta">
+              <strong id="modalApplicantName" class="applicant-name">Candidate Name</strong>
+              <span id="modalApplicantRole" class="applicant-role">Applied Position</span>
+            </div>
+            <span id="modalApplicantBadge" class="source-tag tag-platform">Source</span>
+          </div>
+
+          <!-- Quick Suggestion Chips -->
+          <div class="quick-tags-section">
+            <span class="quick-tags-label">Quick Suggestions:</span>
+            <div class="quick-tags-wrap">
+              <button type="button" class="quick-tag-btn" onclick="insertQuickTag('Round 1 Cleared ✅')">+ Round 1 Cleared</button>
+              <button type="button" class="quick-tag-btn" onclick="insertQuickTag('Shortlisted for Interview 🎯')">+ Shortlisted</button>
+              <button type="button" class="quick-tag-btn" onclick="insertQuickTag('Follow-up Required 📞')">+ Follow-up</button>
+              <button type="button" class="quick-tag-btn" onclick="insertQuickTag('High Priority ⭐')">+ High Priority</button>
+              <button type="button" class="quick-tag-btn" onclick="insertQuickTag('Not Reachable 📵')">+ Not Reachable</button>
+              <button type="button" class="quick-tag-btn" onclick="insertQuickTag('Salary Expectation: ')">+ Salary</button>
+            </div>
+          </div>
+
+          <!-- Remark Textarea -->
+          <div class="remark-input-container">
+            <div class="remark-label-row">
+              <label for="applicantRemarkTextarea" class="lbl">Applicant Notes / Remark</label>
+              <span class="char-counter" id="remarkCharCounter">0 / 1000</span>
+            </div>
+            <textarea
+              id="applicantRemarkTextarea"
+              class="remark-textarea"
+              placeholder="Write administrative remark for this candidate (e.g. strong technical skills, requested 15 LPA, scheduled interview next Tuesday)..."
+              rows="5"
+              maxlength="1000"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="dialog-footer remark-dialog-footer">
+          <div class="footer-left">
+            <button
+              type="button"
+              class="btn-clear-remark"
+              id="btnClearRemark"
+              onclick="handleClearRemark()"
+              title="Remove current remark"
+            >
+              🗑️ Clear
+            </button>
+          </div>
+          <div class="footer-right">
+            <button
+              type="button"
+              class="btn btn-outline"
+              onclick="closeRemarkModal()"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary btn-save-remark"
+              id="btnSaveRemark"
+              onclick="handleSaveRemark()"
+            >
+              <span class="save-icon">💾</span>
+              <span class="save-btn-txt">Save Remark</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </dialog>
   </div>
 </DashboardLayout>
 
@@ -590,6 +730,229 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
   }
   // @ts-ignore
   window.deleteApplication = deleteApplication;
+
+  // Master Admin Applicant Remark Management
+  let currentActiveAppId = "";
+
+  function openRemarkModal(appId: string) {
+    currentActiveAppId = appId;
+    const btn = document.getElementById(`btn-remark-${appId}`);
+    const modal = document.getElementById("applicantRemarkModal") as HTMLDialogElement | null;
+    if (!btn || !modal) return;
+
+    const applicantName = btn.getAttribute("data-applicant-name") || "Applicant";
+    const jobTitle = btn.getAttribute("data-job-title") || "Applied Position";
+    const source = btn.getAttribute("data-source") || "Platform";
+    const remarks = btn.getAttribute("data-remarks") || "";
+
+    const nameEl = document.getElementById("modalApplicantName");
+    const roleEl = document.getElementById("modalApplicantRole");
+    const avatarEl = document.getElementById("modalApplicantAvatar");
+    const badgeEl = document.getElementById("modalApplicantBadge");
+    const textarea = document.getElementById("applicantRemarkTextarea") as HTMLTextAreaElement | null;
+    const charCounter = document.getElementById("remarkCharCounter");
+    const clearBtn = document.getElementById("btnClearRemark");
+
+    if (nameEl) nameEl.textContent = applicantName;
+    if (roleEl) roleEl.textContent = jobTitle;
+    if (avatarEl) avatarEl.textContent = applicantName.charAt(0).toUpperCase() || "A";
+    if (badgeEl) {
+      badgeEl.textContent = source;
+      const lower = source.toLowerCase();
+      badgeEl.className = `source-tag ${lower.includes('sanskar') ? 'tag-sanskar' : lower.includes('alightway') ? 'tag-alightway' : 'tag-platform'}`;
+    }
+
+    if (textarea) {
+      textarea.value = remarks;
+      if (charCounter) charCounter.textContent = `${remarks.length} / 1000`;
+    }
+
+    if (clearBtn) {
+      clearBtn.style.display = remarks ? "inline-flex" : "none";
+    }
+
+    modal.showModal();
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      }
+    }, 80);
+  }
+
+  function closeRemarkModal() {
+    const modal = document.getElementById("applicantRemarkModal") as HTMLDialogElement | null;
+    if (modal) modal.close();
+    currentActiveAppId = "";
+  }
+
+  function insertQuickTag(tag: string) {
+    const textarea = document.getElementById("applicantRemarkTextarea") as HTMLTextAreaElement | null;
+    const charCounter = document.getElementById("remarkCharCounter");
+    if (!textarea) return;
+
+    const cur = textarea.value.trim();
+    if (!cur) {
+      textarea.value = tag + " ";
+    } else {
+      textarea.value = `${cur} | ${tag} `;
+    }
+    if (charCounter) charCounter.textContent = `${textarea.value.length} / 1000`;
+    textarea.focus();
+  }
+
+  async function handleSaveRemark() {
+    if (!currentActiveAppId) return;
+
+    const textarea = document.getElementById("applicantRemarkTextarea") as HTMLTextAreaElement | null;
+    const saveBtn = document.getElementById("btnSaveRemark") as HTMLButtonElement | null;
+    const remarkValue = textarea ? textarea.value.trim() : "";
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="saving-spinner"></span> Saving...';
+    }
+
+    try {
+      const res = await fetch("/api/masteradmin/save-remark", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: currentActiveAppId,
+          remarks: remarkValue,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        updateApplicantRemarkDOM(currentActiveAppId, remarkValue);
+
+        // @ts-ignore
+        if (window.showToast) {
+          // @ts-ignore
+          window.showToast(remarkValue ? "Remark saved successfully!" : "Remark removed.");
+        }
+
+        closeRemarkModal();
+      } else {
+        // @ts-ignore
+        if (window.showToast) window.showToast(data.error || "Failed to save remark.", "error");
+      }
+    } catch (err) {
+      console.error("Save remark error:", err);
+      // @ts-ignore
+      if (window.showToast) window.showToast("Network error while saving remark.", "error");
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<span class="save-icon">💾</span><span class="save-btn-txt">Save Remark</span>';
+      }
+    }
+  }
+
+  function handleClearRemark() {
+    if (!confirm("Are you sure you want to clear this applicant's remark?")) return;
+    const textarea = document.getElementById("applicantRemarkTextarea") as HTMLTextAreaElement | null;
+    const charCounter = document.getElementById("remarkCharCounter");
+    if (textarea) {
+      textarea.value = "";
+      if (charCounter) charCounter.textContent = "0 / 1000";
+    }
+    handleSaveRemark();
+  }
+
+  function updateApplicantRemarkDOM(appId: string, remark: string) {
+    const btn = document.getElementById(`btn-remark-${appId}`);
+    const previewText = document.getElementById(`remark-preview-text-${appId}`);
+    const row = btn ? btn.closest("tr") : null;
+    const dialogBox = document.getElementById(`dialog-remark-box-${appId}`);
+
+    if (btn) {
+      btn.setAttribute("data-remarks", remark);
+      const iconSpan = btn.querySelector(".remark-icon-badge");
+      let dot = btn.querySelector(".remark-status-dot");
+
+      if (remark) {
+        btn.className = "btn-remark-cell has-remark";
+        btn.title = `Remark: "${remark}" (Click to view/edit)`;
+        if (iconSpan) iconSpan.textContent = "💬";
+        if (previewText) previewText.textContent = remark;
+        if (!dot) {
+          const newDot = document.createElement("span");
+          newDot.className = "remark-status-dot";
+          newDot.title = "Remark saved";
+          btn.appendChild(newDot);
+        }
+      } else {
+        btn.className = "btn-remark-cell no-remark";
+        btn.title = "Add Remark for this applicant";
+        if (iconSpan) iconSpan.textContent = "✏️";
+        if (previewText) previewText.textContent = "Add Remark";
+        if (dot) dot.remove();
+      }
+    }
+
+    if (row) {
+      const currentSearch = row.getAttribute("data-search-text") || "";
+      row.setAttribute("data-search-text", currentSearch + " " + remark.toLowerCase());
+    }
+
+    if (dialogBox) {
+      if (remark) {
+        dialogBox.innerHTML = `<p class="remark-dialog-text">${remark}</p>`;
+      } else {
+        dialogBox.innerHTML = `<p class="remark-dialog-empty">No remarks added yet for this applicant.</p>`;
+      }
+    }
+  }
+
+  // Character counter for remark textarea
+  const remarkTextarea = document.getElementById("applicantRemarkTextarea") as HTMLTextAreaElement | null;
+  const remarkCounter = document.getElementById("remarkCharCounter");
+  if (remarkTextarea && remarkCounter) {
+    remarkTextarea.addEventListener("input", () => {
+      remarkCounter.textContent = `${remarkTextarea.value.length} / 1000`;
+    });
+  }
+
+  // Close modal when clicking on dialog backdrop
+  const remarkModalEl = document.getElementById("applicantRemarkModal") as HTMLDialogElement | null;
+  if (remarkModalEl) {
+    remarkModalEl.addEventListener("click", (e) => {
+      const rect = remarkModalEl.getBoundingClientRect();
+      const isInDialog = (
+        rect.top <= e.clientY &&
+        e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX &&
+        e.clientX <= rect.left + rect.width
+      );
+      if (!isInDialog) {
+        remarkModalEl.close();
+      }
+    });
+  }
+
+  // Keyboard shortcut: Ctrl+Enter or Cmd+Enter to save remark
+  if (remarkTextarea) {
+    remarkTextarea.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleSaveRemark();
+      }
+    });
+  }
+
+  // @ts-ignore
+  window.openRemarkModal = openRemarkModal;
+  // @ts-ignore
+  window.closeRemarkModal = closeRemarkModal;
+  // @ts-ignore
+  window.insertQuickTag = insertQuickTag;
+  // @ts-ignore
+  window.handleSaveRemark = handleSaveRemark;
+  // @ts-ignore
+  window.handleClearRemark = handleClearRemark;
 
   // Live Instant Search Filter for Candidates
   const searchInput = document.getElementById("candidateSearchInput") as HTMLInputElement | null;
@@ -1056,4 +1419,394 @@ const totalScopePositionsCount = availablePositions.reduce((acc, p) => acc + p.c
 
   .empty-cell { padding: 4rem 2rem !important; text-align: center; }
   .empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+  /* ============================================================ */
+  /* REMARK FEATURE STYLES                                        */
+  /* ============================================================ */
+
+  .remark-col-cell {
+    min-width: 170px;
+  }
+
+  .btn-remark-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 220px;
+    text-align: left;
+    outline: none;
+    user-select: none;
+  }
+
+  .btn-remark-cell.no-remark {
+    background: rgba(99, 102, 241, 0.05);
+    border: 1px dashed rgba(99, 102, 241, 0.35);
+    color: var(--color-primary);
+  }
+
+  .btn-remark-cell.no-remark:hover {
+    background: var(--color-primary);
+    color: white;
+    border-style: solid;
+    border-color: var(--color-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+  }
+
+  .btn-remark-cell.has-remark {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: var(--color-text-main);
+  }
+
+  .btn-remark-cell.has-remark:hover {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: #10b981;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+  }
+
+  .remark-icon-badge {
+    font-size: 0.95rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .remark-text-preview {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+    font-size: 0.8rem;
+  }
+
+  .remark-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+    flex-shrink: 0;
+  }
+
+  .remark-action {
+    color: var(--color-primary);
+  }
+  .remark-action:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: var(--color-primary);
+  }
+
+  /* Remark Modal */
+  .remark-modal {
+    max-width: 540px !important;
+    width: 92vw !important;
+  }
+
+  .remark-dialog-content {
+    padding: 1.5rem !important;
+  }
+
+  .remark-modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .remark-header-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  .remark-subtitle {
+    margin: 0.2rem 0 0 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+  }
+
+  .remark-dialog-body {
+    padding: 1.25rem 0 !important;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .remark-applicant-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .applicant-mini-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    font-weight: 800;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .applicant-mini-meta {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .applicant-name {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--color-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .applicant-role {
+    font-size: 0.78rem;
+    color: var(--color-primary);
+    font-weight: 600;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Quick Suggestions */
+  .quick-tags-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .quick-tags-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  .quick-tags-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .quick-tag-btn {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+
+  .quick-tag-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: rgba(99, 102, 241, 0.08);
+    transform: translateY(-1px);
+  }
+
+  /* Remark Input */
+  .remark-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .remark-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .char-counter {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    font-weight: 500;
+  }
+
+  .remark-textarea {
+    width: 100%;
+    background: var(--color-bg);
+    border: 1.5px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.85rem;
+    font-size: 0.88rem;
+    color: var(--color-text-main);
+    font-family: inherit;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 110px;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+
+  .remark-textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+
+  .remark-textarea::placeholder {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+  }
+
+  /* Remark Modal Footer */
+  .remark-dialog-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+  }
+
+  .footer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .btn-clear-remark {
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .btn-clear-remark:hover {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: #ef4444;
+  }
+
+  .btn-save-remark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1.3rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+
+  .saving-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid white;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Details Dialog Remark Display */
+  .dialog-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+
+  .btn-dialog-edit-remark {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-dialog-edit-remark:hover {
+    border-color: var(--color-primary);
+    background: rgba(99, 102, 241, 0.08);
+  }
+
+  .dialog-remark-box {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    min-height: 50px;
+  }
+
+  .remark-dialog-text {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--color-text-main);
+    white-space: pre-wrap;
+  }
+
+  .remark-dialog-empty {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
+
+  /* Responsive Adjustments */
+  @media (max-width: 768px) {
+    .remark-col-cell {
+      min-width: 140px;
+    }
+    .btn-remark-cell {
+      max-width: 160px;
+    }
+    .remark-text-preview {
+      max-width: 90px;
+    }
+    .remark-modal {
+      width: 96vw !important;
+      margin: 1rem auto;
+    }
+  }
 </style>

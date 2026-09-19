@@ -100,6 +100,7 @@ export const applications = sqliteTable('applications', {
   aiScore: integer('ai_score'), // 0-100 match score from Gemini API
   aiSummary: text('ai_summary'), // Brief explanation from Gemini API
   notes: text('notes'),
+  remarks: text('remarks'),
   appliedAt: integer('applied_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   isDeleted: integer('is_deleted', { mode: 'boolean' }).default(false),
